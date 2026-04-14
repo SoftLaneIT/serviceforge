@@ -1,0 +1,48 @@
+# ============================================================================
+# ServiceForge Gateway — Production Dockerfile
+# ============================================================================
+# Multi-stage build: compile Go binary, then copy to minimal runtime image
+# Final image is ~15MB (distroless) with zero attack surface
+# ============================================================================
+
+# ── Stage 1: Build ──
+FROM golang:1.22-alpine AS builder
+
+RUN apk add --no-cache git ca-certificates tzdata
+
+WORKDIR /build
+
+# Copy workspace files first (better layer caching)
+COPY go.work go.work.sum ./
+COPY pkg/go.mod pkg/go.sum ./pkg/
+COPY services/gateway/go.mod services/gateway/go.sum ./services/gateway/
+
+# Download dependencies (cached unless go.mod changes)
+RUN cd services/gateway && go mod download
+
+# Copy source code
+COPY pkg/ ./pkg/
+COPY services/gateway/ ./services/gateway/
+
+# Build the binary
+RUN cd services/gateway && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -ldflags="-w -s -X main.version=${SF_VERSION:-dev}" \
+    -o /build/bin/gateway ./main.go
+
+# ── Stage 2: Runtime ──
+FROM gcr.io/distroless/static-debian12:nonroot
+
+# Copy timezone data and CA certs from builder
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
+# Copy binary
+COPY --from=builder /build/bin/gateway /gateway
+
+# Run as non-root user (UID 65534)
+USER nonroot:nonroot
+
+EXPOSE 8000
+
+ENTRYPOINT ["/gateway"]

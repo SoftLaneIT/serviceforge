@@ -1,0 +1,77 @@
+# ServiceForge — Cloud Infrastructure Override
+# Usage: docker compose -f docker-compose.yml -f docker-compose.cloud-infra.yml up -d
+#
+# Removes local Postgres/Redis/Kafka containers and points services
+# to external managed infrastructure (RDS, ElastiCache, MSK, etc.)
+# Set connection strings in .env
+
+services:
+  # Disable local infrastructure (override with empty config)
+  postgres:
+    profiles: ["disabled"]
+  redis:
+    profiles: ["disabled"]
+  kafka:
+    profiles: ["disabled"]
+
+  # Override service environment to point to external infra
+  gateway:
+    environment:
+      SF_DATABASE_URL: ${EXTERNAL_DATABASE_URL}
+      SF_REDIS_URL: ${EXTERNAL_REDIS_URL}
+      SF_KAFKA_BROKERS: ${EXTERNAL_KAFKA_BROKERS}
+    depends_on: []
+
+  tenant:
+    environment:
+      SF_DATABASE_URL: ${EXTERNAL_DATABASE_URL}
+      SF_REDIS_URL: ${EXTERNAL_REDIS_URL}
+      SF_KAFKA_BROKERS: ${EXTERNAL_KAFKA_BROKERS}
+    depends_on: []
+
+  config-engine:
+    environment:
+      SF_DATABASE_URL: ${EXTERNAL_DATABASE_URL}
+      SF_REDIS_URL: ${EXTERNAL_REDIS_URL}
+      SF_KAFKA_BROKERS: ${EXTERNAL_KAFKA_BROKERS}
+    depends_on: []
+
+  booking:
+    environment:
+      SF_DATABASE_URL: ${EXTERNAL_DATABASE_URL}
+      SF_REDIS_URL: ${EXTERNAL_REDIS_URL}
+      SF_KAFKA_BROKERS: ${EXTERNAL_KAFKA_BROKERS}
+    depends_on: []
+
+  payment:
+    environment:
+      SF_DATABASE_URL: ${EXTERNAL_DATABASE_URL}
+      SF_REDIS_URL: ${EXTERNAL_REDIS_URL}
+      SF_KAFKA_BROKERS: ${EXTERNAL_KAFKA_BROKERS}
+    depends_on: []
+
+  queue:
+    environment:
+      SF_DATABASE_URL: ${EXTERNAL_DATABASE_URL}
+      SF_REDIS_URL: ${EXTERNAL_REDIS_URL}
+      SF_KAFKA_BROKERS: ${EXTERNAL_KAFKA_BROKERS}
+    depends_on: []
+
+  notification:
+    environment:
+      SF_DATABASE_URL: ${EXTERNAL_DATABASE_URL}
+      SF_REDIS_URL: ${EXTERNAL_REDIS_URL}
+      SF_KAFKA_BROKERS: ${EXTERNAL_KAFKA_BROKERS}
+    depends_on: []
+
+  logging:
+    environment:
+      SF_DATABASE_URL: ${EXTERNAL_DATABASE_URL}
+      SF_REDIS_URL: ${EXTERNAL_REDIS_URL}
+      SF_KAFKA_BROKERS: ${EXTERNAL_KAFKA_BROKERS}
+    depends_on: []
+
+  migrate:
+    environment:
+      SF_DATABASE_URL: ${EXTERNAL_DATABASE_URL}
+    depends_on: []

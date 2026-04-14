@@ -1,0 +1,165 @@
+# ============================================================================
+# ServiceForge — Development Override
+# ============================================================================
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Mounts source code for hot-reload, enables debug ports,
+# uses Air for Go live-reload and Next.js dev server
+# ============================================================================
+
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile.dev
+    volumes:
+      - ./services/gateway:/app/services/gateway
+      - ./pkg:/app/pkg
+    environment:
+      SF_LOG_LEVEL: debug
+      SF_LOG_FORMAT: text
+    ports:
+      - "8000:8000"
+      - "2345:2345"   # Delve debugger
+
+  tenant:
+    build:
+      context: .
+      dockerfile: services/tenant/Dockerfile.dev
+    volumes:
+      - ./services/tenant:/app/services/tenant
+      - ./pkg:/app/pkg
+    environment:
+      SF_LOG_LEVEL: debug
+      SF_LOG_FORMAT: text
+    ports:
+      - "8007:8007"
+
+  config-engine:
+    build:
+      context: .
+      dockerfile: services/config-engine/Dockerfile.dev
+    volumes:
+      - ./services/config-engine:/app/services/config-engine
+      - ./pkg:/app/pkg
+    environment:
+      SF_LOG_LEVEL: debug
+      SF_LOG_FORMAT: text
+    ports:
+      - "8006:8006"
+
+  booking:
+    build:
+      context: .
+      dockerfile: services/booking/Dockerfile.dev
+    volumes:
+      - ./services/booking:/app/services/booking
+      - ./pkg:/app/pkg
+    environment:
+      SF_LOG_LEVEL: debug
+      SF_LOG_FORMAT: text
+    ports:
+      - "8001:8001"
+
+  payment:
+    build:
+      context: .
+      dockerfile: services/payment/Dockerfile.dev
+    volumes:
+      - ./services/payment:/app/services/payment
+      - ./pkg:/app/pkg
+    environment:
+      SF_LOG_LEVEL: debug
+      SF_LOG_FORMAT: text
+    ports:
+      - "8002:8002"
+
+  queue:
+    build:
+      context: .
+      dockerfile: services/queue/Dockerfile.dev
+    volumes:
+      - ./services/queue:/app/services/queue
+      - ./pkg:/app/pkg
+    environment:
+      SF_LOG_LEVEL: debug
+      SF_LOG_FORMAT: text
+    ports:
+      - "8003:8003"
+
+  notification:
+    build:
+      context: .
+      dockerfile: services/notification/Dockerfile.dev
+    volumes:
+      - ./services/notification:/app/services/notification
+      - ./pkg:/app/pkg
+    environment:
+      SF_LOG_LEVEL: debug
+      SF_LOG_FORMAT: text
+    ports:
+      - "8004:8004"
+
+  logging:
+    build:
+      context: .
+      dockerfile: services/logging/Dockerfile.dev
+    volumes:
+      - ./services/logging:/app/services/logging
+      - ./pkg:/app/pkg
+    environment:
+      SF_LOG_LEVEL: debug
+      SF_LOG_FORMAT: text
+    ports:
+      - "8005:8005"
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./web/src:/app/src
+      - ./web/public:/app/public
+    environment:
+      NODE_ENV: development
+    ports:
+      - "3000:3000"
+
+  # Kafka UI for development
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: sf-kafka-ui
+    environment:
+      KAFKA_CLUSTERS_0_NAME: serviceforge
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    ports:
+      - "8090:8080"
+    networks:
+      - serviceforge
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  # pgAdmin for development
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: sf-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@serviceforge.io
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "5050:80"
+    networks:
+      - serviceforge
+
+  # Redis Commander for development
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: sf-redis-ui
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    ports:
+      - "8081:8081"
+    networks:
+      - serviceforge
