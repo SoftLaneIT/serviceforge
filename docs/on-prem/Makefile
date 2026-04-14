@@ -1,6 +1,4 @@
-# ============================================================================
 # ServiceForge Platform — Makefile
-# ============================================================================
 
 .PHONY: help up down dev core cloud reset logs build test lint migrate
 

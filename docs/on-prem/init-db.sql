@@ -1,9 +1,6 @@
--- ============================================================================
 -- ServiceForge Platform — Database Initialization
--- ============================================================================
 -- This script runs once when PostgreSQL container starts for the first time.
 -- It creates extensions, the base schema, and enables Row-Level Security.
--- ============================================================================
 
 -- Required extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";

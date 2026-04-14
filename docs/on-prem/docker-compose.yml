@@ -1,12 +1,9 @@
-# ============================================================================
 # ServiceForge Platform — Docker Compose (On-Prem / Single Node)
-# ============================================================================
 # Usage:
 #   Full platform:      docker compose up -d
 #   Core only:          docker compose --profile core up -d
 #   With monitoring:    docker compose --profile monitoring up -d
 #   Dev mode (hot):     docker compose -f docker-compose.yml -f docker-compose.dev.yml up
-# ============================================================================
 
 x-common-env: &common-env
   SF_DATABASE_URL: postgres://serviceforge:${POSTGRES_PASSWORD}@postgres:5432/serviceforge?sslmode=disable

@@ -1,9 +1,6 @@
-# ============================================================================
 # ServiceForge — Development Dockerfile (with hot-reload)
-# ============================================================================
 # Uses Air for Go live-reload on file changes
 # Mount source code as volume for instant feedback
-# ============================================================================
 
 FROM golang:1.22-alpine
 

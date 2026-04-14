@@ -1,11 +1,8 @@
-# ============================================================================
 # ServiceForge — Development Override
-# ============================================================================
 # Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 #
 # Mounts source code for hot-reload, enables debug ports,
 # uses Air for Go live-reload and Next.js dev server
-# ============================================================================
 
 services:
   gateway:

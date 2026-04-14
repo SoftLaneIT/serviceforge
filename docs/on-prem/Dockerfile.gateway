@@ -1,9 +1,6 @@
-# ============================================================================
 # ServiceForge Gateway — Production Dockerfile
-# ============================================================================
 # Multi-stage build: compile Go binary, then copy to minimal runtime image
 # Final image is ~15MB (distroless) with zero attack surface
-# ============================================================================
 
 # ── Stage 1: Build ──
 FROM golang:1.22-alpine AS builder

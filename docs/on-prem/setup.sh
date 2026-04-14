@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# ============================================================================
 # ServiceForge Platform — One-Command Setup
-# ============================================================================
 # Usage:
 #   ./setup.sh                    # Full platform (on-prem)
 #   ./setup.sh --dev              # Development mode with hot-reload + dev tools
@@ -10,7 +8,6 @@
 #   ./setup.sh --monitoring       # Full platform + Prometheus/Grafana/Loki
 #   ./setup.sh --down             # Stop everything
 #   ./setup.sh --reset            # Stop + remove all data volumes
-# ============================================================================
 
 set -euo pipefail
 
