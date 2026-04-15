@@ -43,9 +43,9 @@ x-service-defaults: &service-defaults
 
 services:
 
-  # 
+  # ─
   #  INFRASTRUCTURE
-  # 
+  # ─
 
   postgres:
     image: postgres:16-alpine
@@ -136,9 +136,9 @@ services:
         limits:
           memory: 1G
 
-  # 
+  # ─
   #  REVERSE PROXY
-  # 
+  # ─
 
   traefik:
     image: traefik:v3.1
@@ -162,9 +162,9 @@ services:
     networks:
       - serviceforge
 
-  # 
+  # ─
   #  APPLICATION SERVICES
-  # 
+  # ─
 
   gateway:
     <<: *service-defaults
@@ -285,9 +285,9 @@ services:
       SF_SERVICE_NAME: logging
       SF_LOGGING_PORT: 8005
 
-  # 
+  # ─
   #  MANAGEMENT UI
-  # 
+  # ─
 
   web:
     <<: *service-defaults
@@ -312,9 +312,9 @@ services:
         limits:
           memory: 512M
 
-  # 
+  # ─
   #  DATABASE MIGRATIONS (run once)
-  # 
+  # ─
 
   migrate:
     image: serviceforge/migrate:${SF_VERSION:-latest}
@@ -331,9 +331,9 @@ services:
       - serviceforge
     restart: "no"
 
-  # 
+  # ─
   #  MONITORING (optional, activate with --profile monitoring)
-  # 
+  # ─
 
   prometheus:
     image: prom/prometheus:v2.52.0
