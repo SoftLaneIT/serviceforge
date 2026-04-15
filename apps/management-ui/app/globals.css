@@ -1,0 +1,99 @@
+:root {
+  --bg: #f6f7f4;
+  --surface: #ffffff;
+  --text: #121814;
+  --muted: #4d5c52;
+  --accent: #0f766e;
+  --accent-2: #db6f33;
+  --border: #d8ddd8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
+  color: var(--text);
+  background: radial-gradient(circle at top left, #f2f8f6 0%, #f6f7f4 55%, #ecefea 100%);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.page {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.hero {
+  border: 1px solid var(--border);
+  background: linear-gradient(135deg, #ffffff, #edf2ee);
+  border-radius: 20px;
+  padding: 28px;
+}
+
+.grid {
+  margin-top: 18px;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.card {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.metric {
+  font-size: 1.8rem;
+  margin: 6px 0;
+}
+
+.badge {
+  display: inline-block;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, white);
+  color: var(--accent);
+  font-weight: 600;
+  padding: 6px 12px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 18px;
+}
+
+.table th,
+.table td {
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  padding: 12px;
+}
+
+.pill {
+  background: color-mix(in srgb, var(--accent-2) 20%, white);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+@media (max-width: 700px) {
+  .page {
+    padding: 14px;
+  }
+
+  .hero {
+    padding: 18px;
+  }
+}
