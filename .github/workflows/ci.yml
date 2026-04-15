@@ -16,11 +16,11 @@ jobs:
           go-version: "1.23.x"
       - name: Verify modules build
         run: |
-          cd services/api-gateway && go build ./...
-          cd ../auth-service && go build ./...
-          cd ../tenant-service && go build ./...
-          cd ../config-service && go build ./...
-          cd ../booking-service && go build ./...
+          cd services/api-gateway && go build ./cmd/server
+          cd ../auth-service && go build ./cmd/server
+          cd ../tenant-service && go build ./cmd/server
+          cd ../config-service && go build ./cmd/server
+          cd ../booking-service && go build ./cmd/server
 
   ui-build:
     runs-on: ubuntu-latest

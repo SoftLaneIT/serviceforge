@@ -1,5 +1,4 @@
 package main
-package main
 
 import (
 	"encoding/json"
@@ -21,9 +20,9 @@ func main() {
 			return
 		}
 		respondJSON(w, http.StatusCreated, map[string]any{
-			"tenantId": tenant.FromContext(r.Context()),
+			"tenantId":    tenant.FromContext(r.Context()),
 			"accessToken": "stub-access-token",
-			"tokenType": "Bearer",
+			"tokenType":   "Bearer",
 		})
 	})
 
