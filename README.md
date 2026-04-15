@@ -1,3 +1,50 @@
+# ServiceForge Platform
+
+## Project Identity
+
+- Project name: ServiceForge
+- Repository: SoftLaneIT/serviceforge
+- Suggested deployable platform repository name: serviceforge-platform
+- Product direction: Multi-tenant configurable business capability platform
+
+## Implemented Scaffold (Phase 1)
+
+- Scalable monorepo folder layout
+- Go service skeletons for `api-gateway`, `auth-service`, `tenant-service`, `config-service`, and `booking-service`
+- Next.js management UI shell in `apps/management-ui`
+- Local infrastructure in `deploy/docker/docker-compose.dev.yml` (PostgreSQL, Redis, Kafka)
+- Initial OpenAPI contract in `packages/contracts/openapi/booking.v1.yaml`
+
+## Chosen Technology Stack
+
+- Backend services: Go
+- Management UI: Next.js + TypeScript
+- Multi-tenant data isolation: PostgreSQL with row-level security model
+- Event backbone: Kafka
+- Cache: Redis
+- Deployment target: Kubernetes + Helm + Terraform
+
+## Quick Start
+
+```bash
+make up
+make auth
+make tenant
+make config
+make booking
+make gateway
+```
+
+In a separate terminal:
+
+```bash
+cd apps/management-ui
+npm install
+npm run dev
+```
+
+---
+
 # SaaS Platform Architecture: Configurable Business Services Platform (ServiceForge)
 
 I'll architect this end-to-end. A platform that provides pre-built business capabilities (booking, payments, queues, etc.) as configurable, subscribable services that developers integrate via APIs and manage via a UI.

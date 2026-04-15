@@ -1,0 +1,73 @@
+openapi: 3.0.3
+info:
+  title: ServiceForge Booking API
+  version: 1.0.0
+servers:
+  - url: http://localhost:8085
+paths:
+  /v1/bookings:
+    get:
+      summary: List bookings for tenant
+      parameters:
+        - in: header
+          name: X-Tenant-ID
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Booking list
+    post:
+      summary: Create a booking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [customer, service, startAt]
+              properties:
+                customer:
+                  type: string
+                service:
+                  type: string
+                startAt:
+                  type: string
+                  format: date-time
+      responses:
+        "201":
+          description: Booking created
+  /v1/bookings/{bookingId}:
+    get:
+      summary: Get a booking by id
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Booking details
+    put:
+      summary: Update booking status
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Booking updated
+    delete:
+      summary: Delete booking
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Booking deleted

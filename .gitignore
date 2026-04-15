@@ -16,3 +16,13 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Node / Next.js
+node_modules/
+.next/
+dist/
+
+# Go
+bin/
+*.test
+coverage.out
+
