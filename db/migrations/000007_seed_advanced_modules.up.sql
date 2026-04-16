@@ -20,9 +20,9 @@
 -- input, nested section, select, etc.).
 --
 
--- ─────────────────────────────────────────────────────────────────────────────
+-- ──
 -- 1. queue — booking-queue and locking behaviour
--- ─────────────────────────────────────────────────────────────────────────────
+-- ──
 INSERT INTO module_schemas (module, version, description, schema, defaults)
 VALUES (
     'queue',
@@ -132,9 +132,9 @@ VALUES (
     }'::jsonb
 );
 
--- ─────────────────────────────────────────────────────────────────────────────
+-- ──
 -- 2. notifications — outbound notification channels and retry policy
--- ─────────────────────────────────────────────────────────────────────────────
+-- ──
 INSERT INTO module_schemas (module, version, description, schema, defaults)
 VALUES (
     'notifications',
@@ -295,9 +295,9 @@ VALUES (
     }'::jsonb
 );
 
--- ─────────────────────────────────────────────────────────────────────────────
+-- ──
 -- 3. business-hours — operating schedule and holiday calendar
--- ─────────────────────────────────────────────────────────────────────────────
+-- ──
 INSERT INTO module_schemas (module, version, description, schema, defaults)
 VALUES (
     'business-hours',
@@ -447,9 +447,9 @@ VALUES (
     }'::jsonb
 );
 
--- ─────────────────────────────────────────────────────────────────────────────
+-- ──
 -- 4. access — session management, IP controls, and rate limiting
--- ─────────────────────────────────────────────────────────────────────────────
+-- ──
 INSERT INTO module_schemas (module, version, description, schema, defaults)
 VALUES (
     'access',
@@ -592,9 +592,9 @@ VALUES (
     }'::jsonb
 );
 
--- ─────────────────────────────────────────────────────────────────────────────
+-- ──
 -- 5. branding — white-label appearance settings
--- ─────────────────────────────────────────────────────────────────────────────
+-- ──
 INSERT INTO module_schemas (module, version, description, schema, defaults)
 VALUES (
     'branding',

@@ -73,6 +73,14 @@ export interface UpdateBookingBody {
   status: BookingStatus;
 }
 
+export interface EditBookingBody {
+  customerRef: string;
+  serviceRef: string;
+  slotStart: string;
+  slotEnd: string;
+  metadata?: Record<string, unknown>;
+}
+
 export const bookingsApi = {
   list(tenantId: string, params: ListBookingsParams = {}): Promise<ListBookingsResponse> {
     const qs = new URLSearchParams();
@@ -93,6 +101,10 @@ export const bookingsApi = {
 
   updateStatus(id: string, body: UpdateBookingBody, tenantId: string): Promise<Booking> {
     return bookingRequest<Booking>(`/v1/bookings/${id}`, { method: "PATCH", body, tenantId });
+  },
+
+  edit(id: string, body: EditBookingBody, tenantId: string): Promise<Booking> {
+    return bookingRequest<Booking>(`/v1/bookings/${id}`, { method: "PUT", body, tenantId });
   },
 
   cancel(id: string, tenantId: string): Promise<void> {

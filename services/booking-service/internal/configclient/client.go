@@ -33,9 +33,9 @@ import (
 	"time"
 )
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ──
 // Typed config structs (one per enforced module)
-// ─────────────────────────────────────────────────────────────────────────────
+// ──
 
 // BookingCfg mirrors the "booking" module JSON Schema.
 type BookingCfg struct {
@@ -77,19 +77,19 @@ type BusinessHoursCfg struct {
 
 // QueueCfg mirrors the "queue" module JSON Schema (subset used by booking-service).
 type QueueCfg struct {
-	MaxSeats               int    `json:"maxSeats"`
-	MaxConcurrentUsers     int    `json:"maxConcurrentUsers"`
-	QueueType              string `json:"queueType"`
-	OverflowBehaviour      string `json:"overflowBehaviour"`
-	MaxWaitTimeSeconds     int    `json:"maxWaitTimeSeconds"`
-	LockingTimeoutSeconds  int    `json:"lockingTimeoutSeconds"`
+	MaxSeats              int    `json:"maxSeats"`
+	MaxConcurrentUsers    int    `json:"maxConcurrentUsers"`
+	QueueType             string `json:"queueType"`
+	OverflowBehaviour     string `json:"overflowBehaviour"`
+	MaxWaitTimeSeconds    int    `json:"maxWaitTimeSeconds"`
+	LockingTimeoutSeconds int    `json:"lockingTimeoutSeconds"`
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ──
 // Safe defaults — returned when config-service is unreachable or a module is
 // not configured for the tenant.  Chosen to be permissive so that a config
 // outage does not break the booking flow.
-// ─────────────────────────────────────────────────────────────────────────────
+// ──
 
 func defaultBookingCfg() BookingCfg {
 	return BookingCfg{
@@ -132,9 +132,9 @@ func defaultQueueCfg() QueueCfg {
 	}
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ──
 // Cache
-// ─────────────────────────────────────────────────────────────────────────────
+// ──
 
 type cacheKey struct {
 	tenantID string
@@ -147,9 +147,9 @@ type cacheEntry struct {
 	expiresAt time.Time
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ──
 // Client
-// ─────────────────────────────────────────────────────────────────────────────
+// ──
 
 // Client fetches per-tenant module configuration from the config-service and
 // caches the results in memory with a configurable TTL.
@@ -242,9 +242,9 @@ func decode(raw map[string]any, dst any) error {
 	return json.Unmarshal(b, dst)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ──
 // Public typed accessors
-// ─────────────────────────────────────────────────────────────────────────────
+// ──
 
 // GetBookingConfig returns the booking module config for tenantID.
 // Falls back to safe defaults on any error so the booking flow is not blocked.

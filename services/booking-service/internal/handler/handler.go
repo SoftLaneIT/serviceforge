@@ -44,10 +44,10 @@ import (
 
 // Handler holds shared dependencies.
 type Handler struct {
-	repo   repository.Repository
-	pub    events.Publisher
-	cfg    *configclient.Client
-	log    *slog.Logger
+	repo repository.Repository
+	pub  events.Publisher
+	cfg  *configclient.Client
+	log  *slog.Logger
 }
 
 // New returns a Handler wired to the given repository, publisher, config client, and logger.
@@ -61,13 +61,14 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/bookings", h.CreateBooking)
 	mux.HandleFunc("GET /v1/bookings", h.ListBookings)
 	mux.HandleFunc("GET /v1/bookings/{id}", h.GetBooking)
+	mux.HandleFunc("PUT /v1/bookings/{id}", h.UpdateBooking)
 	mux.HandleFunc("PATCH /v1/bookings/{id}", h.UpdateStatus)
 	mux.HandleFunc("DELETE /v1/bookings/{id}", h.CancelBooking)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ──
 // Health
-// ─────────────────────────────────────────────────────────────────────────────
+// ──
 
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{"service": "booking-service", "status": "ok", "db": "ok"}
@@ -81,9 +82,9 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, resp)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ──
 // CreateBooking — policy enforcement pipeline
-// ─────────────────────────────────────────────────────────────────────────────
+// ──
 
 type createRequest struct {
 	CustomerRef string         `json:"customerRef"`
@@ -119,13 +120,13 @@ func (h *Handler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ── Fetch tenant configuration ──────────────────────────────────────────
+	// ── Fetch tenant configuration ─────────────────
 	// Both fetches degrade gracefully to permissive defaults if config-service
 	// is unavailable, so a config outage never breaks the booking flow.
 	bookCfg := h.cfg.GetBookingConfig(r.Context(), tenantID)
 	bizCfg := h.cfg.GetBusinessHoursConfig(r.Context(), tenantID)
 
-	// ── Policy: advance booking limit ───────────────────────────────────────
+	// ── Policy: advance booking limit ──────────────
 	maxFuture := time.Now().UTC().AddDate(0, 0, bookCfg.AdvanceBookingDays)
 	if req.SlotStart.After(maxFuture) {
 		respondError(w, http.StatusUnprocessableEntity, fmt.Sprintf(
@@ -135,7 +136,7 @@ func (h *Handler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ── Policy: slot must not be in the past ────────────────────────────────
+	// ── Policy: slot must not be in the past ───────
 	if req.SlotStart.Before(time.Now().UTC()) {
 		respondError(w, http.StatusUnprocessableEntity, "slot start must be in the future")
 		return
@@ -151,7 +152,7 @@ func (h *Handler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ── Policy: business hours ──────────────────────────────────────────────
+	// ── Policy: business hours ─────────────────────
 	if !bizCfg.AllowBookingsOutsideHours {
 		if err := checkBusinessHours(bizCfg, req.SlotStart, req.SlotEnd); err != nil {
 			respondError(w, http.StatusUnprocessableEntity, err.Error())
@@ -159,7 +160,7 @@ func (h *Handler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// ── Policy: max bookings per day ────────────────────────────────────────
+	// ── Policy: max bookings per day ───────────────
 	dayCount, err := h.repo.CountForDate(r.Context(), tenantID, req.SlotStart)
 	if err != nil {
 		log.Error("count bookings for date", slog.Any("error", err))
@@ -174,10 +175,10 @@ func (h *Handler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ── Policy: buffer between consecutive bookings ─────────────────────────
+	// ── Policy: buffer between consecutive bookings
 	if bookCfg.BufferMinutes > 0 {
 		conflict, err := h.repo.HasBufferConflict(
-			r.Context(), tenantID, req.ServiceRef,
+			r.Context(), tenantID, req.ServiceRef, "", // "" = no exclusion for new bookings
 			req.SlotStart, req.SlotEnd, bookCfg.BufferMinutes,
 		)
 		if err != nil {
@@ -194,12 +195,12 @@ func (h *Handler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// ── Policy: autoConfirm ─────────────────────────────────────────────────
+	// ── Policy: autoConfirm ────────────────────────
 	if bookCfg.AutoConfirm {
 		params.InitialStatus = domain.StatusConfirmed
 	}
 
-	// ── Persist ─────────────────────────────────────────────────────────────
+	// ── Persist ───────────
 	booking, err := h.repo.Create(r.Context(), tenantID, params)
 	if err != nil {
 		if errors.Is(err, domain.ErrSlotConflict) {
@@ -223,8 +224,126 @@ func (h *Handler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ListBookings
+// UpdateBooking — full edit of slot times, refs, and metadata
 // ─────────────────────────────────────────────────────────────────────────────
+
+type updateBookingRequest struct {
+	CustomerRef string         `json:"customerRef"`
+	ServiceRef  string         `json:"serviceRef"`
+	SlotStart   time.Time      `json:"slotStart"`
+	SlotEnd     time.Time      `json:"slotEnd"`
+	Metadata    map[string]any `json:"metadata"`
+}
+
+func (h *Handler) UpdateBooking(w http.ResponseWriter, r *http.Request) {
+	log := logger.FromContext(r.Context())
+	tenantID := tenant.FromContext(r.Context())
+	if tenantID == "" || tenantID == tenant.DefaultTenant {
+		respondError(w, http.StatusBadRequest, "X-Tenant-ID header is required")
+		return
+	}
+
+	id := r.PathValue("id")
+
+	var req updateBookingRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+
+	params := domain.UpdateParams{
+		CustomerRef: req.CustomerRef,
+		ServiceRef:  req.ServiceRef,
+		SlotStart:   req.SlotStart,
+		SlotEnd:     req.SlotEnd,
+		Metadata:    req.Metadata,
+	}
+	if err := params.Validate(); err != nil {
+		respondError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	// ── Fetch tenant configuration ──────────────────────────────────────────
+	bookCfg := h.cfg.GetBookingConfig(r.Context(), tenantID)
+	bizCfg := h.cfg.GetBusinessHoursConfig(r.Context(), tenantID)
+
+	// ── Policy: advance booking limit ───────────────────────────────────────
+	maxFuture := time.Now().UTC().AddDate(0, 0, bookCfg.AdvanceBookingDays)
+	if req.SlotStart.After(maxFuture) {
+		respondError(w, http.StatusUnprocessableEntity, fmt.Sprintf(
+			"slot is too far in the future: bookings may only be created up to %d day(s) ahead",
+			bookCfg.AdvanceBookingDays,
+		))
+		return
+	}
+
+	// ── Policy: minimum slot duration ───────────────────────────────────────
+	slotMinutes := int(req.SlotEnd.Sub(req.SlotStart).Minutes())
+	if bookCfg.SlotDurationMinutes > 0 && slotMinutes < bookCfg.SlotDurationMinutes {
+		respondError(w, http.StatusUnprocessableEntity, fmt.Sprintf(
+			"slot duration (%d min) is shorter than the minimum slot duration configured for this tenant (%d min)",
+			slotMinutes, bookCfg.SlotDurationMinutes,
+		))
+		return
+	}
+
+	// ── Policy: business hours ──────────────────────────────────────────────
+	if !bizCfg.AllowBookingsOutsideHours {
+		if err := checkBusinessHours(bizCfg, req.SlotStart, req.SlotEnd); err != nil {
+			respondError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+	}
+
+	// ── Policy: buffer (exclude self so it doesn't conflict with its old slot)
+	if bookCfg.BufferMinutes > 0 {
+		conflict, err := h.repo.HasBufferConflict(
+			r.Context(), tenantID, req.ServiceRef, id,
+			req.SlotStart, req.SlotEnd, bookCfg.BufferMinutes,
+		)
+		if err != nil {
+			log.Error("buffer conflict check (update)", slog.Any("error", err))
+			respondError(w, http.StatusInternalServerError, "internal error")
+			return
+		}
+		if conflict {
+			respondError(w, http.StatusConflict, fmt.Sprintf(
+				"a %d-minute buffer is required between consecutive bookings for this service",
+				bookCfg.BufferMinutes,
+			))
+			return
+		}
+	}
+
+	// ── Persist ─────────────────────────────────────────────────────────────
+	booking, err := h.repo.Update(r.Context(), tenantID, id, params)
+	if err != nil {
+		switch {
+		case errors.Is(err, domain.ErrNotFound):
+			respondError(w, http.StatusNotFound, "booking not found")
+		case errors.Is(err, domain.ErrTerminalStatus):
+			respondError(w, http.StatusConflict, "cannot edit a booking in a terminal state")
+		case errors.Is(err, domain.ErrSlotConflict):
+			respondError(w, http.StatusConflict, "time slot already booked")
+		default:
+			log.Error("update booking", slog.String("id", id), slog.Any("error", err))
+			respondError(w, http.StatusInternalServerError, "internal error")
+		}
+		return
+	}
+
+	go h.publishUpdated(booking)
+
+	log.Info("booking updated",
+		slog.String("booking_id", id),
+		slog.String("tenant_id", tenantID),
+	)
+	respondJSON(w, http.StatusOK, booking)
+}
+
+// ──
+// ListBookings
+// ──
 
 type listResponse struct {
 	Data   []domain.Booking `json:"data"`
@@ -271,9 +390,9 @@ func (h *Handler) ListBookings(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ──
 // GetBooking
-// ─────────────────────────────────────────────────────────────────────────────
+// ──
 
 func (h *Handler) GetBooking(w http.ResponseWriter, r *http.Request) {
 	log := logger.FromContext(r.Context())
@@ -298,9 +417,9 @@ func (h *Handler) GetBooking(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, booking)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ──
 // UpdateStatus
-// ─────────────────────────────────────────────────────────────────────────────
+// ──
 
 type updateStatusRequest struct {
 	Status domain.Status `json:"status"`
@@ -350,9 +469,9 @@ func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, booking)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ──
 // CancelBooking
-// ─────────────────────────────────────────────────────────────────────────────
+// ──
 
 func (h *Handler) CancelBooking(w http.ResponseWriter, r *http.Request) {
 	log := logger.FromContext(r.Context())
@@ -383,9 +502,9 @@ func (h *Handler) CancelBooking(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, booking)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ──
 // Business-hours enforcement helper
-// ─────────────────────────────────────────────────────────────────────────────
+// ──
 
 // checkBusinessHours returns a descriptive error when slotStart or slotEnd
 // falls outside the tenant's configured operating hours for that day.
@@ -403,7 +522,7 @@ func checkBusinessHours(cfg configclient.BusinessHoursCfg, slotStart, slotEnd ti
 	start := slotStart.In(loc)
 	end := slotEnd.In(loc)
 
-	// ── Check the start day ──────────────────────────────────────────────────
+	// ── Check the start day
 	startDayName := strings.ToLower(start.Weekday().String())
 	startSched := dayScheduleFor(cfg, startDayName)
 
@@ -433,7 +552,7 @@ func checkBusinessHours(cfg configclient.BusinessHoursCfg, slotStart, slotEnd ti
 		return fmt.Errorf("slot ends after closing time (%s)", endSched.CloseTime)
 	}
 
-	// ── Break-time check (same-day bookings only) ────────────────────────────
+	// ── Break-time check (same-day bookings only) ───
 	startDate := time.Date(sy, smo, sd, 0, 0, 0, 0, loc)
 	endDate := time.Date(ey, emo, ed, 0, 0, 0, 0, loc)
 	if startDate.Equal(endDate) && cfg.BreakDurationMinutes > 0 && cfg.BreakStartTime != "" {
@@ -486,9 +605,9 @@ func parseHHMM(s string) (int, int) {
 	return h, m
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ──
 // Event helpers
-// ─────────────────────────────────────────────────────────────────────────────
+// ──
 
 func newEventID() string {
 	b := make([]byte, 16)
@@ -565,9 +684,9 @@ func timeoutCtx(secs int) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), time.Duration(secs)*time.Second)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ──
 // HTTP helpers
-// ─────────────────────────────────────────────────────────────────────────────
+// ──
 
 func respondJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")

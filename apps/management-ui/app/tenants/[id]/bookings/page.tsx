@@ -34,9 +34,10 @@ import {
   type Booking,
   type BookingStatus,
   type CreateBookingBody,
+  type EditBookingBody,
 } from "@/lib/api/bookings";
 import { formatDate } from "@/lib/utils";
-import { CalendarDays, Plus, Trash2, RefreshCw, ArrowLeft } from "lucide-react";
+import { CalendarDays, Plus, Trash2, RefreshCw, ArrowLeft, Pencil } from "lucide-react";
 
 const NEXT_STATUSES: Record<BookingStatus, BookingStatus[]> = {
   pending:   ["confirmed", "cancelled"],
@@ -46,13 +47,14 @@ const NEXT_STATUSES: Record<BookingStatus, BookingStatus[]> = {
   no_show:   [],
 };
 
-const createSchema = z.object({
+const bookingFormSchema = z.object({
   customerRef: z.string().min(1, "Required"),
   serviceRef:  z.string().min(1, "Required"),
   slotStart:   z.string().min(1, "Required"),
   slotEnd:     z.string().min(1, "Required"),
+  metadata:    z.string().optional(),
 });
-type CreateForm = z.infer<typeof createSchema>;
+type BookingForm = z.infer<typeof bookingFormSchema>;
 
 const statusFilterOptions = [
   { value: "", label: "All statuses" },
@@ -69,6 +71,7 @@ function TenantBookingsContent({ params }: { params: Promise<{ id: string }> }) 
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<Booking | null>(null);
   const [cancelTarget, setCancelTarget] = useState<Booking | null>(null);
   const [updateTarget, setUpdateTarget] = useState<Booking | null>(null);
   const [page, setPage] = useState(0);
@@ -96,7 +99,18 @@ function TenantBookingsContent({ params }: { params: Promise<{ id: string }> }) 
       toast("Booking created", "success");
       qc.invalidateQueries({ queryKey: ["bookings", id] });
       setCreateOpen(false);
-      reset();
+      createForm.reset();
+    },
+    onError: (e: Error) => toast(e.message, "error"),
+  });
+
+  const editMutation = useMutation({
+    mutationFn: ({ bid, body }: { bid: string; body: EditBookingBody }) =>
+      bookingsApi.edit(bid, body, id),
+    onSuccess: () => {
+      toast("Booking updated", "success");
+      qc.invalidateQueries({ queryKey: ["bookings", id] });
+      setEditTarget(null);
     },
     onError: (e: Error) => toast(e.message, "error"),
   });
@@ -122,12 +136,50 @@ function TenantBookingsContent({ params }: { params: Promise<{ id: string }> }) 
     onError: (e: Error) => toast(e.message, "error"),
   });
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm<CreateForm>({ resolver: zodResolver(createSchema) });
+  // Create form
+  const createForm = useForm<BookingForm>({ resolver: zodResolver(bookingFormSchema) });
+  const { register, handleSubmit, formState: { errors } } = createForm;
+
+  // Edit form — pre-populated when editTarget changes
+  const editForm = useForm<BookingForm>({ resolver: zodResolver(bookingFormSchema) });
+
+  // Pre-populate edit form whenever a booking is selected for editing
+  const openEdit = (b: Booking) => {
+    const toLocal = (iso: string) => {
+      const d = new Date(iso);
+      const pad = (n: number) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+    editForm.reset({
+      customerRef: b.customerRef,
+      serviceRef:  b.serviceRef,
+      slotStart:   toLocal(b.slotStart),
+      slotEnd:     toLocal(b.slotEnd),
+      metadata:    Object.keys(b.metadata ?? {}).length > 0
+        ? JSON.stringify(b.metadata, null, 2)
+        : "",
+    });
+    setEditTarget(b);
+  };
+
+  const submitEdit = editForm.handleSubmit((v) => {
+    if (!editTarget) return;
+    let parsedMeta: Record<string, unknown> = {};
+    if (v.metadata?.trim()) {
+      try { parsedMeta = JSON.parse(v.metadata); }
+      catch { editForm.setError("metadata", { message: "Invalid JSON" }); return; }
+    }
+    editMutation.mutate({
+      bid: editTarget.id,
+      body: {
+        customerRef: v.customerRef,
+        serviceRef:  v.serviceRef,
+        slotStart:   new Date(v.slotStart).toISOString(),
+        slotEnd:     new Date(v.slotEnd).toISOString(),
+        metadata:    parsedMeta,
+      },
+    });
+  });
 
   const bookings = bookingsQuery.data?.data ?? [];
   const total = bookingsQuery.data?.total ?? 0;
@@ -210,11 +262,23 @@ function TenantBookingsContent({ params }: { params: Promise<{ id: string }> }) 
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
+                          {(b.status === "pending" || b.status === "confirmed") && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-slate-500 hover:bg-slate-100"
+                              onClick={() => openEdit(b)}
+                              title="Edit booking"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                           {nextStatuses.length > 0 && (
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => setUpdateTarget(b)}
+                              title="Change status"
                             >
                               <RefreshCw className="h-3.5 w-3.5" />
                             </Button>
@@ -225,6 +289,7 @@ function TenantBookingsContent({ params }: { params: Promise<{ id: string }> }) 
                               size="sm"
                               className="text-red-500 hover:bg-red-50"
                               onClick={() => setCancelTarget(b)}
+                              title="Cancel booking"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
@@ -254,33 +319,112 @@ function TenantBookingsContent({ params }: { params: Promise<{ id: string }> }) 
         )}
       </Card>
 
+      {/* ── Create dialog ── */}
       <Dialog
         open={createOpen}
-        onClose={() => { setCreateOpen(false); reset(); }}
+        onClose={() => { setCreateOpen(false); createForm.reset(); }}
         title="New Booking"
         description="Create a booking for this tenant."
       >
         <form
-          onSubmit={handleSubmit((v) =>
+          onSubmit={handleSubmit((v) => {
+            let meta: Record<string, unknown> = {};
+            if (v.metadata?.trim()) {
+              try { meta = JSON.parse(v.metadata); }
+              catch { createForm.setError("metadata", { message: "Invalid JSON" }); return; }
+            }
             createMutation.mutate({
-              ...v,
-              slotStart: new Date(v.slotStart).toISOString(),
-              slotEnd:   new Date(v.slotEnd).toISOString(),
-            })
-          )}
+              customerRef: v.customerRef,
+              serviceRef:  v.serviceRef,
+              slotStart:   new Date(v.slotStart).toISOString(),
+              slotEnd:     new Date(v.slotEnd).toISOString(),
+              metadata:    meta,
+            });
+          })}
           className="space-y-4"
         >
           <Input label="Customer Reference" placeholder="cust_12345" error={errors.customerRef?.message} {...register("customerRef")} />
-          <Input label="Service Reference" placeholder="svc_abc" error={errors.serviceRef?.message} {...register("serviceRef")} />
+          <Input label="Service Reference"  placeholder="svc_abc"    error={errors.serviceRef?.message}  {...register("serviceRef")} />
           <Input label="Slot Start" type="datetime-local" error={errors.slotStart?.message} {...register("slotStart")} />
-          <Input label="Slot End" type="datetime-local" error={errors.slotEnd?.message} {...register("slotEnd")} />
+          <Input label="Slot End"   type="datetime-local" error={errors.slotEnd?.message}   {...register("slotEnd")} />
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Metadata <span className="text-slate-400 font-normal">(optional JSON)</span>
+            </label>
+            <textarea
+              rows={3}
+              placeholder={'{"notes": "first visit"}'}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+              {...register("metadata")}
+            />
+            {errors.metadata && <p className="mt-1 text-xs text-red-500">{errors.metadata.message}</p>}
+          </div>
           <div className="flex justify-end gap-2 pt-1">
-            <Button type="button" variant="outline" onClick={() => { setCreateOpen(false); reset(); }}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={() => { setCreateOpen(false); createForm.reset(); }}>Cancel</Button>
             <Button type="submit" loading={createMutation.isPending}>Create Booking</Button>
           </div>
         </form>
       </Dialog>
 
+      {/* ── Edit dialog ── */}
+      {editTarget && (
+        <Dialog
+          open
+          onClose={() => setEditTarget(null)}
+          title="Edit Booking"
+          description={`Editing booking for "${editTarget.customerRef}"`}
+        >
+          <form onSubmit={submitEdit} className="space-y-4">
+            <Input
+              label="Customer Reference"
+              placeholder="cust_12345"
+              error={editForm.formState.errors.customerRef?.message}
+              {...editForm.register("customerRef")}
+            />
+            <Input
+              label="Service Reference"
+              placeholder="svc_abc"
+              error={editForm.formState.errors.serviceRef?.message}
+              {...editForm.register("serviceRef")}
+            />
+            <Input
+              label="Slot Start"
+              type="datetime-local"
+              error={editForm.formState.errors.slotStart?.message}
+              {...editForm.register("slotStart")}
+            />
+            <Input
+              label="Slot End"
+              type="datetime-local"
+              error={editForm.formState.errors.slotEnd?.message}
+              {...editForm.register("slotEnd")}
+            />
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Metadata <span className="text-slate-400 font-normal">(optional JSON)</span>
+              </label>
+              <textarea
+                rows={3}
+                placeholder={'{"notes": ""}'}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+                {...editForm.register("metadata")}
+              />
+              {editForm.formState.errors.metadata && (
+                <p className="mt-1 text-xs text-red-500">{editForm.formState.errors.metadata.message}</p>
+              )}
+            </div>
+            <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
+              Status <strong>{editTarget.status}</strong> is unchanged. Use the status button to change it.
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button type="button" variant="outline" onClick={() => setEditTarget(null)}>Cancel</Button>
+              <Button type="submit" loading={editMutation.isPending}>Save Changes</Button>
+            </div>
+          </form>
+        </Dialog>
+      )}
+
+      {/* ── Status dialog ── */}
       {updateTarget && (
         <Dialog open onClose={() => setUpdateTarget(null)} title="Update Status" size="sm">
           <div className="space-y-2">

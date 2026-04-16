@@ -115,6 +115,43 @@ func (p CreateParams) Validate() error {
 	return nil
 }
 
+// UpdateParams is the validated input for editing an existing booking.
+// Only editable fields are included — status transitions use UpdateStatus.
+// A booking may only be edited while in a non-terminal state.
+type UpdateParams struct {
+	CustomerRef string
+	ServiceRef  string
+	SlotStart   time.Time
+	SlotEnd     time.Time
+	Metadata    map[string]any
+}
+
+// Validate returns a combined error if any field is invalid.
+func (p UpdateParams) Validate() error {
+	var errs []string
+
+	if strings.TrimSpace(p.CustomerRef) == "" {
+		errs = append(errs, "customerRef is required")
+	}
+	if strings.TrimSpace(p.ServiceRef) == "" {
+		errs = append(errs, "serviceRef is required")
+	}
+	if p.SlotStart.IsZero() {
+		errs = append(errs, "slotStart is required")
+	}
+	if p.SlotEnd.IsZero() {
+		errs = append(errs, "slotEnd is required")
+	}
+	if !p.SlotStart.IsZero() && !p.SlotEnd.IsZero() && !p.SlotEnd.After(p.SlotStart) {
+		errs = append(errs, "slotEnd must be after slotStart")
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("validation: %s", strings.Join(errs, "; "))
+	}
+	return nil
+}
+
 // Sentinel errors.
 var (
 	ErrNotFound       = errors.New("booking not found")

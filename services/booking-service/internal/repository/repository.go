@@ -62,6 +62,12 @@ type Repository interface {
 	// Returns ErrNotFound or ErrTerminalStatus.
 	Cancel(ctx context.Context, tenantID, id string) (*domain.Booking, error)
 
+	// Update replaces the editable fields of an existing booking (slot times,
+	// refs, metadata).  Status is not changed.  Returns ErrNotFound if the
+	// booking does not exist for tenantID, or ErrTerminalStatus if the booking
+	// is already in a terminal state.
+	Update(ctx context.Context, tenantID, id string, p domain.UpdateParams) (*domain.Booking, error)
+
 	// CountForDate returns the number of active (non-cancelled, non-no_show)
 	// bookings for tenantID whose slot_start falls on date (UTC calendar day).
 	// Used to enforce the maxBookingsPerDay policy.
@@ -69,8 +75,9 @@ type Repository interface {
 
 	// HasBufferConflict returns true when any active booking for tenantID+serviceRef
 	// overlaps with the expanded window [slotStart − bufferMinutes, slotEnd + bufferMinutes].
-	// A bufferMinutes of 0 makes this equivalent to a simple overlap check.
-	HasBufferConflict(ctx context.Context, tenantID, serviceRef string, slotStart, slotEnd time.Time, bufferMinutes int) (bool, error)
+	// excludeID, when non-empty, exempts a specific booking from the check (used
+	// when re-validating an edit so the booking does not conflict with itself).
+	HasBufferConflict(ctx context.Context, tenantID, serviceRef, excludeID string, slotStart, slotEnd time.Time, bufferMinutes int) (bool, error)
 
 	// Ping verifies the underlying connection is alive.
 	Ping(ctx context.Context) error

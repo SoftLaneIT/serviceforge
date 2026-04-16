@@ -154,16 +154,73 @@ func (r *PostgresRepo) CountForDate(ctx context.Context, tenantID string, date t
 	return count, nil
 }
 
+// Update replaces the editable fields of an existing booking.  Status is
+// intentionally not changed here — use UpdateStatus / Cancel for that.
+func (r *PostgresRepo) Update(ctx context.Context, tenantID, id string, p domain.UpdateParams) (*domain.Booking, error) {
+	existing, err := r.GetByID(ctx, tenantID, id)
+	if err != nil {
+		return nil, err
+	}
+	if existing.Status.Terminal() {
+		return nil, domain.ErrTerminalStatus
+	}
+
+	metaJSON, err := marshalMetadata(p.Metadata)
+	if err != nil {
+		return nil, err
+	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	if err := setTenantContext(ctx, tx, tenantID); err != nil {
+		return nil, fmt.Errorf("set tenant context: %w", err)
+	}
+
+	const q = `
+		UPDATE bookings
+		SET    customer_ref = $2,
+		       service_ref  = $3,
+		       slot_start   = $4,
+		       slot_end     = $5,
+		       metadata     = $6,
+		       updated_at   = NOW()
+		WHERE  id = $1::uuid
+		RETURNING ` + selectCols
+
+	row := tx.QueryRow(ctx, q, id, p.CustomerRef, p.ServiceRef, p.SlotStart, p.SlotEnd, metaJSON)
+	b, err := scanBooking(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation {
+			return nil, domain.ErrSlotConflict
+		}
+		return nil, fmt.Errorf("update booking: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit update booking: %w", err)
+	}
+	return b, nil
+}
+
 // HasBufferConflict returns true when any active booking for the same
 // tenantID + serviceRef overlaps with the expanded window:
 //
 //	[slotStart − bufferMinutes, slotEnd + bufferMinutes]
 //
-// A bufferMinutes value of 0 makes this a plain overlap check (useful to
-// detect double-booking before the unique index fires).
+// excludeID exempts a specific booking ID from the check (pass the booking's
+// own ID when re-validating an edit so it doesn't conflict with itself).
+// A bufferMinutes value of 0 makes this a plain overlap check.
 func (r *PostgresRepo) HasBufferConflict(
 	ctx context.Context,
-	tenantID, serviceRef string,
+	tenantID, serviceRef, excludeID string,
 	slotStart, slotEnd time.Time,
 	bufferMinutes int,
 ) (bool, error) {
@@ -180,15 +237,17 @@ func (r *PostgresRepo) HasBufferConflict(
 	// An existing booking B conflicts when:
 	//   B.slot_end   > slotStart − buffer  (B finishes too close to the new start)
 	//   B.slot_start < slotEnd   + buffer  (B starts too close to the new end)
+	// excludeID (if non-empty) exempts the booking being edited.
 	const q = `
 		SELECT COUNT(*) FROM bookings
 		WHERE  service_ref = $1
 		AND    status NOT IN ('cancelled', 'no_show')
+		AND    ($5 = '' OR id::text != $5)
 		AND    slot_end   > $2::timestamptz - ($3 * interval '1 minute')
 		AND    slot_start < $4::timestamptz + ($3 * interval '1 minute')`
 
 	var count int
-	if err := tx.QueryRow(ctx, q, serviceRef, slotStart, bufferMinutes, slotEnd).Scan(&count); err != nil {
+	if err := tx.QueryRow(ctx, q, serviceRef, slotStart, bufferMinutes, slotEnd, excludeID).Scan(&count); err != nil {
 		return false, fmt.Errorf("buffer conflict check: %w", err)
 	}
 

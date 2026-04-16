@@ -26,7 +26,7 @@ import {
   X,
 } from "lucide-react";
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
+// ─── helpers ───────────────
 
 function useClipboard(timeout = 1800) {
   const [copied, setCopied] = useState<string | null>(null);
@@ -39,7 +39,7 @@ function useClipboard(timeout = 1800) {
   return { copied, copy };
 }
 
-// ─── components ──────────────────────────────────────────────────────────────
+// ─── components ────────────
 
 function CodeBlock({
   id,
@@ -195,7 +195,7 @@ function Note({ children, type = "info" }: { children: React.ReactNode; type?: "
   );
 }
 
-// ─── nav config ──────────────────────────────────────────────────────────────
+// ─── nav config ────────────
 
 const NAV = [
   { id: "overview",        label: "Overview",              icon: BookOpen },
@@ -212,7 +212,7 @@ const NAV = [
   { id: "docker",          label: "Self-hosting",          icon: Terminal },
 ];
 
-// ─── page ─────────────────────────────────────────────────────────────────────
+// ─── page ───────────────────
 
 export default function DocsPage() {
   const { copied, copy } = useClipboard();
