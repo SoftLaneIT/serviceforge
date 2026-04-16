@@ -28,6 +28,7 @@ import (
 
 	"github.com/santhosh-tekuri/jsonschema/v5"
 )
+// bytes is used for schema AddResource below
 
 // Validate checks that cfg conforms to schemaDoc (a JSON Schema draft-07
 // object).  It returns a human-readable description of all violations on
@@ -58,7 +59,13 @@ func Validate(schemaDoc map[string]any, cfg map[string]any) error {
 		return fmt.Errorf("compile schema: %w", err)
 	}
 
-	if err := schema.Validate(bytes.NewReader(cfgJSON)); err != nil {
+	// Decode cfg back to interface{} so the library receives a typed value,
+	// not an io.Reader (v5.3.1 does not accept io.Reader in Validate).
+	var cfgDecoded interface{}
+	if err := json.Unmarshal(cfgJSON, &cfgDecoded); err != nil {
+		return fmt.Errorf("re-decode config: %w", err)
+	}
+	if err := schema.Validate(cfgDecoded); err != nil {
 		// Flatten the validation error tree into a readable string.
 		return fmt.Errorf("config validation failed: %s", flattenErrors(err))
 	}

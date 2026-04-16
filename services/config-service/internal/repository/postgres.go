@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -114,7 +115,7 @@ func (r *PostgresRepo) GetConfig(ctx context.Context, tenantID, module string) (
 
 	const q = `
 		SELECT id::text, tenant_id::text, module, config, schema_version,
-		       created_at, updated_at
+		       subscribed_at, updated_at
 		FROM   module_configs
 		WHERE  tenant_id = $1::uuid AND module = $2`
 
@@ -161,7 +162,7 @@ func (r *PostgresRepo) UpsertConfig(ctx context.Context, tenantID, module string
 		    schema_version = EXCLUDED.schema_version,
 		    updated_at = NOW()
 		RETURNING id::text, tenant_id::text, module, config, schema_version,
-		          created_at, updated_at`
+		          subscribed_at, updated_at`
 
 	row := tx.QueryRow(ctx, upsertQ, tenantID, module, cfgJSON, schemaVersion)
 	result, err := scanConfig(row)
@@ -170,11 +171,19 @@ func (r *PostgresRepo) UpsertConfig(ctx context.Context, tenantID, module string
 	}
 
 	// Append history entry.
-	const histQ = `
-		INSERT INTO config_history (config_id, tenant_id, module, config, changed_by)
-		VALUES ($1::uuid, $2::uuid, $3, $4, $5)`
+	// changed_by is a UUID column; pass nil (NULL) when the caller supplies
+	// a non-UUID string such as the "api" fallback sentinel.
+	var changedByParam interface{}
+	if isUUID(changedBy) {
+		changedByParam = changedBy
+	}
 
-	if _, err := tx.Exec(ctx, histQ, result.ID, tenantID, module, cfgJSON, changedBy); err != nil {
+	const histQ = `
+		INSERT INTO config_history
+		       (tenant_id, module, config_before, config_after, schema_version, changed_by)
+		VALUES ($1::uuid, $2, NULL, $3, $4, $5::uuid)`
+
+	if _, err := tx.Exec(ctx, histQ, tenantID, module, cfgJSON, schemaVersion, changedByParam); err != nil {
 		return nil, fmt.Errorf("insert config history: %w", err)
 	}
 
@@ -203,8 +212,8 @@ func (r *PostgresRepo) ListHistory(ctx context.Context, tenantID, module string,
 	}
 
 	const q = `
-		SELECT id::text, config_id::text, tenant_id::text, module,
-		       config, changed_by, changed_at
+		SELECT id::text, tenant_id::text, module,
+		       config_after, COALESCE(changed_by::text, ''), changed_at
 		FROM   config_history
 		WHERE  tenant_id = $1::uuid AND module = $2
 		ORDER  BY changed_at DESC
@@ -284,7 +293,7 @@ func scanHistory(s scanner) (*domain.ConfigHistory, error) {
 		h       domain.ConfigHistory
 		cfgJSON []byte
 	)
-	if err := s.Scan(&h.ID, &h.ConfigID, &h.TenantID, &h.Module, &cfgJSON, &h.ChangedBy, &h.ChangedAt); err != nil {
+	if err := s.Scan(&h.ID, &h.TenantID, &h.Module, &cfgJSON, &h.ChangedBy, &h.ChangedAt); err != nil {
 		return nil, err
 	}
 	if err := json.Unmarshal(cfgJSON, &h.Config); err != nil {
@@ -294,4 +303,14 @@ func scanHistory(s scanner) (*domain.ConfigHistory, error) {
 		h.Config = map[string]any{}
 	}
 	return &h, nil
+}
+
+// isUUID returns true when s looks like a canonical UUID
+// (8-4-4-4-12 hex groups separated by dashes, total 36 chars).
+func isUUID(s string) bool {
+	if len(s) != 36 {
+		return false
+	}
+	parts := strings.Split(s, "-")
+	return len(parts) == 5
 }

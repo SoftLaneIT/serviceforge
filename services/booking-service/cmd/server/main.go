@@ -43,6 +43,7 @@ import (
 
 	"github.com/SoftLaneIT/serviceforge/packages/go-common/config"
 	"github.com/SoftLaneIT/serviceforge/packages/go-common/logger"
+	commidware "github.com/SoftLaneIT/serviceforge/packages/go-common/middleware"
 	"github.com/SoftLaneIT/serviceforge/packages/go-common/tenant"
 	"github.com/SoftLaneIT/serviceforge/services/booking-service/internal/events"
 	"github.com/SoftLaneIT/serviceforge/services/booking-service/internal/handler"
@@ -79,7 +80,10 @@ func main() {
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 
-	httpHandler := tenant.Middleware(logger.HTTPMiddleware(log)(mux))
+	corsOrigins := config.GetEnv("CORS_ORIGINS", "http://localhost:3000")
+	httpHandler := commidware.CORS(corsOrigins)(
+		tenant.Middleware(logger.HTTPMiddleware(log)(mux)),
+	)
 
 	port := config.GetEnv("PORT", "8084")
 	srv := &http.Server{

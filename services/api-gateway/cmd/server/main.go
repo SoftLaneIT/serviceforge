@@ -57,6 +57,7 @@ import (
 
 	"github.com/SoftLaneIT/serviceforge/packages/go-common/config"
 	"github.com/SoftLaneIT/serviceforge/packages/go-common/logger"
+	commidware "github.com/SoftLaneIT/serviceforge/packages/go-common/middleware"
 	"github.com/SoftLaneIT/serviceforge/packages/go-common/tenant"
 	gw "github.com/SoftLaneIT/serviceforge/services/api-gateway/internal/middleware"
 	"github.com/SoftLaneIT/serviceforge/services/api-gateway/internal/proxy"
@@ -125,7 +126,12 @@ func main() {
 	mux.Handle("/v1/config", withAuth(configProxy))
 
 	// Outer middleware applied to the whole mux.
-	httpHandler := tenant.Middleware(logger.HTTPMiddleware(log)(mux))
+	// CORS wraps everything so that preflight OPTIONS requests are handled before
+	// auth/rate-limit middleware runs.
+	corsOrigins := config.GetEnv("CORS_ORIGINS", "http://localhost:3000")
+	httpHandler := commidware.CORS(corsOrigins)(
+		tenant.Middleware(logger.HTTPMiddleware(log)(mux)),
+	)
 
 	//  HTTP server
 	port := config.GetEnv("PORT", "8081")

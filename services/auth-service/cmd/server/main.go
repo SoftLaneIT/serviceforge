@@ -42,6 +42,7 @@ import (
 
 	"github.com/SoftLaneIT/serviceforge/packages/go-common/config"
 	"github.com/SoftLaneIT/serviceforge/packages/go-common/logger"
+	commidware "github.com/SoftLaneIT/serviceforge/packages/go-common/middleware"
 	"github.com/SoftLaneIT/serviceforge/packages/go-common/tenant"
 	"github.com/SoftLaneIT/serviceforge/services/auth-service/internal/cache"
 	"github.com/SoftLaneIT/serviceforge/services/auth-service/internal/handler"
@@ -75,7 +76,10 @@ func main() {
 	// Middleware chain (outermost first):
 	//   tenant.Middleware  → injects tenant_id from X-Tenant-ID header
 	//   logger.HTTPMiddleware → structured request logging
-	httpHandler := tenant.Middleware(logger.HTTPMiddleware(log)(mux))
+	corsOrigins := config.GetEnv("CORS_ORIGINS", "http://localhost:3000")
+	httpHandler := commidware.CORS(corsOrigins)(
+		tenant.Middleware(logger.HTTPMiddleware(log)(mux)),
+	)
 
 	port := config.GetEnv("PORT", "8082")
 	srv := &http.Server{

@@ -50,7 +50,6 @@ type ModuleConfig struct {
 // ConfigHistory is one row in the append-only audit log.
 type ConfigHistory struct {
 	ID        string         `json:"id"`
-	ConfigID  string         `json:"configId"`
 	TenantID  string         `json:"tenantId"`
 	Module    string         `json:"module"`
 	Config    map[string]any `json:"config"`

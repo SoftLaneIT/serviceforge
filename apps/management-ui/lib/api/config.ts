@@ -42,7 +42,7 @@ export const configApi = {
     config: Record<string, unknown>,
     tenantId: string,
   ): Promise<ModuleConfig> {
-    return api.put(`/v1/config/${module}`, { config }, { tenantId });
+    return api.put(`/v1/config/${module}`, config, { tenantId });
   },
 
   getHistory(module: string, tenantId: string): Promise<ConfigHistoryEntry[]> {

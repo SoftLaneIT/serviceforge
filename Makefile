@@ -18,7 +18,7 @@ SHELL := /bin/bash
 
 COMPOSE := docker compose -f deploy/docker/docker-compose.dev.yml
 
-# ── module lists ──────────────────────────────────────────────────────────────
+#  module lists 
 SERVICES := packages/go-common \
             services/api-gateway \
             services/auth-service \
@@ -31,7 +31,7 @@ SERVICES := packages/go-common \
         gateway auth tenant booking config ui \
         migrate migrate-down
 
-# ── docker-compose targets ────────────────────────────────────────────────────
+#  docker-compose targets 
 
 ## up: start all services (build images if needed)
 up:
@@ -58,7 +58,7 @@ logs:
 build:
 	$(COMPOSE) build
 
-# ── migration targets ─────────────────────────────────────────────────────────
+#  migration targets ─
 
 ## migrate: run all pending DB migrations
 migrate:
@@ -68,7 +68,7 @@ migrate:
 migrate-down:
 	$(COMPOSE) run --rm migrate down 1
 
-# ── Go targets ────────────────────────────────────────────────────────────────
+#  Go targets 
 
 ## test: run tests in every module
 test:
@@ -105,7 +105,7 @@ tidy:
 	done
 	go work sync
 
-# ── local run targets (infra must be up first) ────────────────────────────────
+#  local run targets (infra must be up first) 
 
 ## gateway: run api-gateway locally
 gateway:
@@ -139,7 +139,7 @@ ui-install:
 ui-build:
 	cd apps/management-ui && npm run build
 
-# ── help ──────────────────────────────────────────────────────────────────────
+#  help 
 
 help:
 	@grep -E '^##' Makefile | sed 's/## //'

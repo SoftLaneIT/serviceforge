@@ -14,7 +14,7 @@
 # specific language governing permissions and limitations
 # under the LICENSE.
 #
-# ── ServiceForge development compose ─────────────────────────────────────────
+#  ServiceForge development compose ─
 #
 # Startup order (via depends_on + condition):
 #   postgres (healthy)
@@ -31,8 +31,6 @@
 #   docker compose -f deploy/docker/docker-compose.dev.yml up --build
 #   docker compose -f deploy/docker/docker-compose.dev.yml run --rm migrate down 1
 
-version: "3.9"
-
 x-service-defaults: &service-defaults
   build:
     context: ../..
@@ -44,7 +42,7 @@ x-service-defaults: &service-defaults
     DATABASE_URL: postgres://serviceforge:serviceforge@postgres:5432/serviceforge?sslmode=disable
     KAFKA_BROKERS: kafka:9092
 
-# ── Infrastructure ────────────────────────────────────────────────────────────
+#  Infrastructure 
 
 services:
   postgres:
@@ -95,21 +93,22 @@ services:
       start_period: 5s
 
   zookeeper:
-    image: bitnami/zookeeper:3.9
+    image: confluentinc/cp-zookeeper:7.5.0
     container_name: serviceforge-zookeeper
     environment:
-      - ALLOW_ANONYMOUS_LOGIN=yes
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
     healthcheck:
-      test: ["CMD-SHELL", "echo ruok | nc -w 2 localhost 2181 | grep imok"]
+      test: ["CMD-SHELL", "echo srvr | nc localhost 2181 2>/dev/null | grep -q 'Zookeeper version' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 15s
 
   kafka:
-    image: bitnami/kafka:3.7
+    image: confluentinc/cp-kafka:7.5.0
     container_name: serviceforge-kafka
     depends_on:
       zookeeper:
@@ -117,12 +116,13 @@ services:
     ports:
       - "9092:9092"
     environment:
-      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
-      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
-      - ALLOW_PLAINTEXT_LISTENER=yes
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
       interval: 10s
       timeout: 10s
       retries: 10
@@ -140,7 +140,7 @@ services:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
 
-# ── Microservices ─────────────────────────────────────────────────────────────
+#  Microservices ─
 
   tenant-service:
     <<: *service-defaults
@@ -299,22 +299,24 @@ services:
   management-ui:
     container_name: serviceforge-management-ui
     build:
-      context: ../..
-      dockerfile: apps/management-ui/Dockerfile
+      context: ../../apps/management-ui
+      dockerfile: Dockerfile
+      args:
+        # NEXT_PUBLIC_* vars are baked into the bundle at build time.
+        # The gateway is exposed on the host at port 8081 so the browser can reach it.
+        NEXT_PUBLIC_API_URL: http://localhost:8081
+        NEXT_PUBLIC_GATEWAY_URL: http://localhost:8081
+        NEXT_PUBLIC_AUTH_URL: http://localhost:8082
+        NEXT_PUBLIC_TENANT_URL: http://localhost:8083
+        NEXT_PUBLIC_BOOKING_URL: http://localhost:8084
+        NEXT_PUBLIC_CONFIG_URL: http://localhost:8085
     depends_on:
       api-gateway:
         condition: service_healthy
     ports:
       - "3000:3000"
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8081
-      NEXT_PUBLIC_GATEWAY_URL: http://localhost:8081
-      NEXT_PUBLIC_AUTH_URL: http://localhost:8082
-      NEXT_PUBLIC_TENANT_URL: http://localhost:8083
-      NEXT_PUBLIC_BOOKING_URL: http://localhost:8084
-      NEXT_PUBLIC_CONFIG_URL: http://localhost:8085
 
-# ── Volumes ───────────────────────────────────────────────────────────────────
+#  Volumes ─
 
 volumes:
   pgdata:
