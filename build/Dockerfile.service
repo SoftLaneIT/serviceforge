@@ -1,0 +1,43 @@
+# Copyright (c) 2026, SoftlaneIT (https://softlaneit.com/) All Rights Reserved.
+#
+# SoftlaneIT licenses this file to you under the Apache License,
+# Version 2.0 (the "LICENSE"); you may not use this file except
+# in compliance with the LICENSE.
+
+#  Stage 1: build 
+FROM golang:1.23-alpine AS builder
+
+# Receive the service name via build-arg, e.g. "tenant-service"
+ARG SERVICE
+RUN test -n "$SERVICE" || (echo "SERVICE build-arg is required" && exit 1)
+
+WORKDIR /workspace
+
+# Copy workspace descriptor first so the module graph is resolvable.
+COPY go.work go.work.sum ./
+
+# Copy shared packages (go-common is the only shared module for now).
+COPY packages/ packages/
+
+# Copy only the target service — avoids cache invalidation from sibling changes.
+COPY services/${SERVICE}/ services/${SERVICE}/
+
+# Build with module cache mount for fast rebuilds.
+RUN --mount=type=cache,target=/root/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    cd services/${SERVICE} && \
+    CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /bin/server ./cmd/server
+
+#  Stage 2: runtime 
+FROM alpine:3.20
+
+# ca-certificates is needed for outbound TLS (Redis TLS, external webhooks).
+RUN apk --no-cache add ca-certificates tzdata
+
+# Run as a non-root user.
+RUN addgroup -S app && adduser -S app -G app
+USER app
+
+COPY --from=builder /bin/server /bin/server
+
+ENTRYPOINT ["/bin/server"]

@@ -58,7 +58,7 @@ CREATE TABLE tenants (
     deleted_at  TIMESTAMPTZ
 );
 
--- ── Constraints ───
+--  Constraints ─
 -- Slugs must be unique among non-deleted tenants only.  A deleted tenant's
 -- slug should be reusable so that an organisation can re-register after
 -- closure.  A partial unique index achieves this cleanly.
@@ -66,7 +66,7 @@ CREATE UNIQUE INDEX uq_tenants_slug_active
     ON tenants (slug)
     WHERE deleted_at IS NULL;
 
--- ── Indices 
+--  Indices 
 -- Management UI lists tenants filtered by status; this supports O(1) lookup.
 CREATE INDEX idx_tenants_status ON tenants (status);
 
@@ -74,7 +74,7 @@ CREATE INDEX idx_tenants_status ON tenants (status);
 -- ("find tenant whose slug contains 'acme'").
 CREATE INDEX idx_tenants_slug_trgm ON tenants USING GIN (slug gin_trgm_ops);
 
--- ── Trigger 
+--  Trigger 
 CREATE TRIGGER trg_tenants_updated_at
     BEFORE UPDATE ON tenants
     FOR EACH ROW

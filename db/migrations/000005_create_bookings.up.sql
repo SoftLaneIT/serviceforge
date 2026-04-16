@@ -14,7 +14,7 @@
 -- specific language governing permissions and limitations
 -- under the LICENSE.
 
--- ──
+-- 
 -- 000005_create_bookings.up
 --
 -- The bookings table is the primary data store for the booking-service.
@@ -40,7 +40,7 @@
 --
 -- Row-Level Security:
 --   Identical to api_keys — scoped to current_setting('app.current_tenant_id').
--- ──
+-- 
 
 CREATE TABLE bookings (
     id              UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -69,14 +69,14 @@ CREATE TABLE bookings (
     CONSTRAINT chk_bookings_slot_order CHECK (slot_end > slot_start)
 );
 
--- ── Constraints ───
+--  Constraints ─
 -- Prevent double-booking: only one active (non-cancelled, non-no_show) booking
 -- is allowed per (tenant, service, start slot).
 CREATE UNIQUE INDEX uq_bookings_active_slot
     ON bookings (tenant_id, service_ref, slot_start)
     WHERE status NOT IN ('cancelled', 'no_show');
 
--- ── Indices ──
+--  Indices 
 -- List all bookings for a tenant, newest first (management UI).
 CREATE INDEX idx_bookings_tenant_created
     ON bookings (tenant_id, created_at DESC);
@@ -94,13 +94,13 @@ CREATE INDEX idx_bookings_tenant_customer
 CREATE INDEX idx_bookings_tenant_status
     ON bookings (tenant_id, status);
 
--- ── Trigger ──
+--  Trigger 
 CREATE TRIGGER trg_bookings_updated_at
     BEFORE UPDATE ON bookings
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at();
 
--- ── Row-Level Security ─
+--  Row-Level Security ─
 ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY bookings_tenant_isolation ON bookings

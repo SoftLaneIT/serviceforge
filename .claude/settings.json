@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(go get:*)",
-      "Bash(go version:*)"
+      "Bash(go version:*)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }

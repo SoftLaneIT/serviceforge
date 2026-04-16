@@ -43,7 +43,7 @@
 --     context automatically scopes every query.
 -- 
 
--- ── 1. module_schemas — platform-wide JSON Schema registry ─
+--  1. module_schemas — platform-wide JSON Schema registry ─
 CREATE TABLE module_schemas (
     -- Canonical module identifier, lowercase (e.g. "booking", "payment").
     module          VARCHAR(100)  NOT NULL,
@@ -68,7 +68,7 @@ CREATE TRIGGER trg_module_schemas_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at();
 
--- ── 2. module_configs — per-tenant live configuration ─
+--  2. module_configs — per-tenant live configuration ─
 CREATE TABLE module_configs (
     id              UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
     tenant_id       UUID          NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -95,20 +95,20 @@ CREATE TRIGGER trg_module_configs_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at();
 
--- ── Indices for module_configs ───
+--  Indices for module_configs ─
 -- config-service fetches a tenant's config for a specific module on every
 -- request — this covers the hot path.
 CREATE INDEX idx_module_configs_tenant_module
     ON module_configs (tenant_id, module);
 
--- ── RLS for module_configs ──
+--  RLS for module_configs 
 ALTER TABLE module_configs ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY module_configs_tenant_isolation ON module_configs
     USING      (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID)
     WITH CHECK (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID);
 
--- ── 3. config_history — immutable audit log ───
+--  3. config_history — immutable audit log ─
 CREATE TABLE config_history (
     id              UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
     tenant_id       UUID          NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -124,13 +124,13 @@ CREATE TABLE config_history (
     -- Deliberately no updated_at — this table is append-only.
 );
 
--- ── Indices for config_history ───
+--  Indices for config_history ─
 -- Primary access pattern: "show me all config changes for tenant X, module Y,
 -- newest first".
 CREATE INDEX idx_config_history_tenant_module_time
     ON config_history (tenant_id, module, changed_at DESC);
 
--- ── RLS for config_history ──
+--  RLS for config_history 
 ALTER TABLE config_history ENABLE ROW LEVEL SECURITY;
 
 -- Read-only: a tenant can only see their own history.

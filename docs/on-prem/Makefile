@@ -25,7 +25,7 @@ help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
 
-# ── Deployment ──
+#  Deployment 
 
 up: ## Start full platform (on-prem / Docker)
 	@./setup.sh --full
@@ -57,7 +57,7 @@ logs-%: ## Tail logs for a specific service (e.g., make logs-gateway)
 ps: ## Show service status
 	@docker compose ps
 
-# ── Build ──
+#  Build 
 
 build: ## Build all Docker images
 	@docker compose build
@@ -65,7 +65,7 @@ build: ## Build all Docker images
 build-%: ## Build a specific service image (e.g., make build-gateway)
 	@docker compose build $*
 
-# ── Database ──
+#  Database 
 
 migrate: ## Run database migrations
 	@docker compose run --rm migrate
@@ -73,7 +73,7 @@ migrate: ## Run database migrations
 db-shell: ## Open PostgreSQL shell
 	@docker compose exec postgres psql -U serviceforge -d serviceforge
 
-# ── Testing ──
+#  Testing 
 
 test: ## Run all tests
 	@echo "Running Go tests..."
@@ -90,7 +90,7 @@ lint: ## Run linters
 	@echo "Linting TypeScript..."
 	@cd web && npm run lint
 
-# ── Code Generation ──
+#  Code Generation 
 
 proto: ## Generate gRPC code from proto files
 	@./tools/codegen/proto-gen.sh
@@ -101,7 +101,7 @@ openapi: ## Generate OpenAPI specs
 sdk: ## Generate client SDKs from OpenAPI specs
 	@./tools/codegen/sdk-gen.sh
 
-# ── Utilities ──
+#  Utilities 
 
 seed: ## Seed development data
 	@docker compose exec gateway /bin/sh -c "go run /app/tools/seed/seed.go"

@@ -34,7 +34,7 @@ import (
 	"github.com/SoftLaneIT/serviceforge/services/tenant-service/internal/repository"
 )
 
-// ─── stub repository ──────────────────────────────────────────────────────────
+// ─ stub repository
 
 // stubRepo is a configurable test double for repository.Repository.  Each
 // field is a function that the handler under test will call; set only the
@@ -74,7 +74,7 @@ func (s *stubRepo) Ping(ctx context.Context) error {
 	return nil
 }
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
+// ─ helpers
 
 func silentLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), &slog.HandlerOptions{
@@ -122,7 +122,7 @@ func newMux(repo repository.Repository) *http.ServeMux {
 	return mux
 }
 
-// ─── Health ───────────────────────────────────────────────────────────────────
+// ─ Health ─
 
 func TestHealth_OK(t *testing.T) {
 	mux := newMux(&stubRepo{pingFn: func(context.Context) error { return nil }})
@@ -156,7 +156,7 @@ func TestHealth_DBDown(t *testing.T) {
 	}
 }
 
-// ─── CreateTenant ─────────────────────────────────────────────────────────────
+// ─ CreateTenant ─
 
 func TestCreateTenant_Created(t *testing.T) {
 	want := fixedTenant()
@@ -221,7 +221,7 @@ func TestCreateTenant_BadJSON(t *testing.T) {
 	}
 }
 
-// ─── GetTenant ────────────────────────────────────────────────────────────────
+// ─ GetTenant
 
 func TestGetTenant_ByID(t *testing.T) {
 	want := fixedTenant()
@@ -276,7 +276,7 @@ func TestGetTenant_NotFound(t *testing.T) {
 	}
 }
 
-// ─── ListTenants ──────────────────────────────────────────────────────────────
+// ─ ListTenants
 
 func TestListTenants_DefaultPagination(t *testing.T) {
 	mux := newMux(&stubRepo{listFn: func(_ context.Context, f repository.ListFilter) (repository.ListResult, error) {
@@ -327,7 +327,7 @@ func TestListTenants_InvalidStatus(t *testing.T) {
 	}
 }
 
-// ─── UpdateTenant ─────────────────────────────────────────────────────────────
+// ─ UpdateTenant ─
 
 func TestUpdateTenant_OK(t *testing.T) {
 	want := fixedTenant()
@@ -380,7 +380,7 @@ func TestUpdateTenant_NotFound(t *testing.T) {
 	}
 }
 
-// ─── DeleteTenant ─────────────────────────────────────────────────────────────
+// ─ DeleteTenant ─
 
 func TestDeleteTenant_NoContent(t *testing.T) {
 	mux := newMux(&stubRepo{deleteFn: func(_ context.Context, id string) error {

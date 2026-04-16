@@ -14,8 +14,8 @@
 -- specific language governing permissions and limitations
 -- under the LICENSE.
 
--- ──
+-- 
 -- 000003_create_api_keys.down
--- ──
+-- 
 
 DROP TABLE IF EXISTS api_keys CASCADE;

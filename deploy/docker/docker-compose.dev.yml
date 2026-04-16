@@ -13,12 +13,42 @@
 # KIND, either express or implied.  See the LICENSE for the
 # specific language governing permissions and limitations
 # under the LICENSE.
+#
+# ── ServiceForge development compose ─────────────────────────────────────────
+#
+# Startup order (via depends_on + condition):
+#   postgres (healthy)
+#     └─ migrate (completes)
+#           └─ tenant-service, auth-service, booking-service, config-service
+#   redis (healthy)
+#     └─ auth-service
+#   kafka
+#     └─ booking-service, config-service
+#   all services (healthy)
+#     └─ api-gateway
+#
+# Usage:
+#   docker compose -f deploy/docker/docker-compose.dev.yml up --build
+#   docker compose -f deploy/docker/docker-compose.dev.yml run --rm migrate down 1
 
 version: "3.9"
 
+x-service-defaults: &service-defaults
+  build:
+    context: ../..
+    dockerfile: build/Dockerfile.service
+  restart: unless-stopped
+  environment:
+    LOG_FORMAT: json
+    LOG_LEVEL: info
+    DATABASE_URL: postgres://serviceforge:serviceforge@postgres:5432/serviceforge?sslmode=disable
+    KAFKA_BROKERS: kafka:9092
+
+# ── Infrastructure ────────────────────────────────────────────────────────────
+
 services:
   postgres:
-    image: postgres:16
+    image: postgres:16-alpine
     container_name: serviceforge-postgres
     environment:
       POSTGRES_USER: serviceforge
@@ -36,7 +66,7 @@ services:
       start_period: 10s
 
   # golang-migrate runner — applies all pending migrations at startup and exits.
-  # Re-run with: docker compose run --rm migrate up
+  # Re-run manually: docker compose run --rm migrate up
   # Roll back one step: docker compose run --rm migrate down 1
   migrate:
     image: migrate/migrate:v4.17.1
@@ -53,10 +83,16 @@ services:
     restart: on-failure
 
   redis:
-    image: redis:7
+    image: redis:7-alpine
     container_name: serviceforge-redis
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
 
   zookeeper:
     image: bitnami/zookeeper:3.9
@@ -65,30 +101,202 @@ services:
       - ALLOW_ANONYMOUS_LOGIN=yes
     ports:
       - "2181:2181"
+    healthcheck:
+      test: ["CMD-SHELL", "echo ruok | nc -w 2 localhost 2181 | grep imok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
 
   kafka:
     image: bitnami/kafka:3.7
     container_name: serviceforge-kafka
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
     ports:
       - "9092:9092"
     environment:
       - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
       - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
       - ALLOW_PLAINTEXT_LISTENER=yes
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: serviceforge-kafka-ui
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     ports:
-      - "8085:8080"
+      - "8090:8080"
     environment:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+
+# ── Microservices ─────────────────────────────────────────────────────────────
+
+  tenant-service:
+    <<: *service-defaults
+    container_name: serviceforge-tenant-service
+    build:
+      context: ../..
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: tenant-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "8083:8083"
+    environment:
+      PORT: "8083"
+      DATABASE_URL: postgres://serviceforge:serviceforge@postgres:5432/serviceforge?sslmode=disable
+      LOG_FORMAT: json
+      LOG_LEVEL: info
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  auth-service:
+    <<: *service-defaults
+    container_name: serviceforge-auth-service
+    build:
+      context: ../..
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: auth-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+    environment:
+      PORT: "8082"
+      DATABASE_URL: postgres://serviceforge:serviceforge@postgres:5432/serviceforge?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+      LOG_FORMAT: json
+      LOG_LEVEL: info
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  booking-service:
+    <<: *service-defaults
+    container_name: serviceforge-booking-service
+    build:
+      context: ../..
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: booking-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8084:8084"
+    environment:
+      PORT: "8084"
+      DATABASE_URL: postgres://serviceforge:serviceforge@postgres:5432/serviceforge?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_ENABLED: "true"
+      LOG_FORMAT: json
+      LOG_LEVEL: info
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8084/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  config-service:
+    <<: *service-defaults
+    container_name: serviceforge-config-service
+    build:
+      context: ../..
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: config-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8085:8085"
+    environment:
+      PORT: "8085"
+      DATABASE_URL: postgres://serviceforge:serviceforge@postgres:5432/serviceforge?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_ENABLED: "true"
+      LOG_FORMAT: json
+      LOG_LEVEL: info
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8085/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  api-gateway:
+    <<: *service-defaults
+    container_name: serviceforge-api-gateway
+    build:
+      context: ../..
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: api-gateway
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      tenant-service:
+        condition: service_healthy
+      booking-service:
+        condition: service_healthy
+      config-service:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    environment:
+      PORT: "8081"
+      AUTH_SERVICE_URL: http://auth-service:8082
+      TENANT_SERVICE_URL: http://tenant-service:8083
+      BOOKING_SERVICE_URL: http://booking-service:8084
+      CONFIG_SERVICE_URL: http://config-service:8085
+      RATE_LIMIT: "100"
+      LOG_FORMAT: json
+      LOG_LEVEL: info
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+# ── Volumes ───────────────────────────────────────────────────────────────────
 
 volumes:
   pgdata:

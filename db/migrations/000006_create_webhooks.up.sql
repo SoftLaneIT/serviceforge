@@ -14,7 +14,7 @@
 -- specific language governing permissions and limitations
 -- under the LICENSE.
 
--- ─────────────────────────────────────────────────────────────────────────────
+-- 
 -- 000006_create_webhooks.up
 --
 -- Two tables support the outbound webhook delivery system:
@@ -36,9 +36,9 @@
 --
 -- The dispatcher (Phase 2, event-bus consumer) is responsible for writing
 -- delivery rows and updating their status.  The management UI reads them.
--- ─────────────────────────────────────────────────────────────────────────────
+-- 
 
--- ── 1. webhooks — endpoint registrations ─────────────────────────────────────
+--  1. webhooks — endpoint registrations 
 CREATE TABLE webhooks (
     id              UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
     tenant_id       UUID          NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -67,19 +67,19 @@ CREATE TRIGGER trg_webhooks_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at();
 
--- ── Indices for webhooks ──────────────────────────────────────────────────────
+--  Indices for webhooks 
 -- Dispatcher fetches active endpoints for a tenant + event type.
 CREATE INDEX idx_webhooks_tenant_status
     ON webhooks (tenant_id, status);
 
--- ── RLS for webhooks ──────────────────────────────────────────────────────────
+--  RLS for webhooks 
 ALTER TABLE webhooks ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY webhooks_tenant_isolation ON webhooks
     USING      (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID)
     WITH CHECK (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID);
 
--- ── 2. webhook_deliveries — delivery attempt log ──────────────────────────────
+--  2. webhook_deliveries — delivery attempt log 
 CREATE TABLE webhook_deliveries (
     id                  UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
     webhook_id          UUID          NOT NULL REFERENCES webhooks(id) ON DELETE CASCADE,
@@ -110,7 +110,7 @@ CREATE TABLE webhook_deliveries (
     -- No updated_at: individual columns are updated atomically by the dispatcher.
 );
 
--- ── Indices for webhook_deliveries ────────────────────────────────────────────
+--  Indices for webhook_deliveries 
 -- Dispatcher polling query: "give me pending/failed deliveries due for retry".
 CREATE INDEX idx_webhook_deliveries_dispatch
     ON webhook_deliveries (status, next_attempt_at)
@@ -129,7 +129,7 @@ CREATE INDEX idx_webhook_deliveries_tenant_created
 CREATE UNIQUE INDEX uq_webhook_deliveries_event_endpoint
     ON webhook_deliveries (webhook_id, event_id);
 
--- ── RLS for webhook_deliveries ────────────────────────────────────────────────
+--  RLS for webhook_deliveries ─
 ALTER TABLE webhook_deliveries ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY webhook_deliveries_tenant_isolation ON webhook_deliveries

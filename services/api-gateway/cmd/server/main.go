@@ -66,28 +66,28 @@ import (
 func main() {
 	log := logger.NewFromEnv("api-gateway")
 
-	// ── service registry ──────────────────────────────────────────────────────
+	//  service registry
 	reg, err := registry.Load()
 	if err != nil {
 		log.Error("load registry", slog.Any("error", err))
 		os.Exit(1)
 	}
 
-	// ── rate limiter ──────────────────────────────────────────────────────────
+	//  rate limiter
 	rateLimit := parseIntDefault(config.GetEnv("RATE_LIMIT", "100"), 100)
 	rateLimiter := gw.NewRateLimiter(rateLimit, time.Minute)
 
-	// ── auth middleware ───────────────────────────────────────────────────────
+	//  auth middleware ─
 	authServiceURL := config.GetEnv("AUTH_SERVICE_URL", "http://localhost:8082")
 	authMiddleware := gw.AuthMiddleware(authServiceURL, log)
 
-	// ── reverse proxies ───────────────────────────────────────────────────────
-	authProxy    := proxy.New(reg.URL(registry.Auth), log)
-	tenantProxy  := proxy.New(reg.URL(registry.Tenant), log)
+	//  reverse proxies ─
+	authProxy := proxy.New(reg.URL(registry.Auth), log)
+	tenantProxy := proxy.New(reg.URL(registry.Tenant), log)
 	bookingProxy := proxy.New(reg.URL(registry.Booking), log)
-	configProxy  := proxy.New(reg.URL(registry.Config), log)
+	configProxy := proxy.New(reg.URL(registry.Config), log)
 
-	// ── routing ───────────────────────────────────────────────────────────────
+	//  routing ─
 	//
 	// Unauthenticated routes are registered first so the auth middleware only
 	// wraps the paths that need it.
@@ -106,7 +106,7 @@ func main() {
 	mux.Handle("/v1/keys/", authProxy)
 	mux.Handle("/v1/keys", authProxy)
 
-	// ── authenticated + rate-limited routes ───────────────────────────────────
+	//  authenticated + rate-limited routes ─
 	//
 	// Middleware chain (innermost first):
 	//   bookingProxy / configProxy
@@ -127,7 +127,7 @@ func main() {
 	// Outer middleware applied to the whole mux.
 	httpHandler := tenant.Middleware(logger.HTTPMiddleware(log)(mux))
 
-	// ── HTTP server ───────────────────────────────────────────────────────────
+	//  HTTP server
 	port := config.GetEnv("PORT", "8081")
 	srv := &http.Server{
 		Addr:         ":" + port,

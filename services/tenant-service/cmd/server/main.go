@@ -46,21 +46,21 @@ import (
 )
 
 func main() {
-	// ── logger ────────────────────────────────────────────────────────────────
+	//  logger
 	log := logger.NewFromEnv("tenant-service")
 
-	// ── database ──────────────────────────────────────────────────────────────
+	//  database
 	dsn := config.GetEnv("DATABASE_URL",
 		"postgres://serviceforge:serviceforge@localhost:5432/serviceforge?sslmode=disable")
 
 	pool := mustConnectPool(log, dsn)
 	defer pool.Close()
 
-	// ── repository + handler ──────────────────────────────────────────────────
+	//  repository + handler ─
 	repo := repository.NewPostgres(pool)
 	h := handler.New(repo, log)
 
-	// ── HTTP server ───────────────────────────────────────────────────────────
+	//  HTTP server
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 
@@ -78,7 +78,7 @@ func main() {
 		IdleTimeout:  120 * time.Second,
 	}
 
-	// ── graceful shutdown ─────────────────────────────────────────────────────
+	//  graceful shutdown ─
 	// Start the HTTP server in a goroutine so the main goroutine can block on
 	// the signal channel.
 	serverErr := make(chan error, 1)
