@@ -11,6 +11,7 @@ import {
   Settings2,
   Zap,
   ChevronRight,
+  Plug,
 } from "lucide-react";
 
 interface NavItem {
@@ -21,11 +22,12 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard",  icon: LayoutDashboard, exact: true },
-  { href: "/tenants",   label: "Tenants",    icon: Building2 },
-  { href: "/keys",      label: "API Keys",   icon: Key },
-  { href: "/bookings",  label: "Bookings",   icon: CalendarDays },
-  { href: "/config",    label: "Config",     icon: Settings2 },
+  { href: "/dashboard",    label: "Dashboard",    icon: LayoutDashboard, exact: true },
+  { href: "/tenants",      label: "Tenants",      icon: Building2 },
+  { href: "/keys",         label: "API Keys",     icon: Key },
+  { href: "/bookings",     label: "Bookings",     icon: CalendarDays },
+  { href: "/config",       label: "Config",       icon: Settings2 },
+  { href: "/integrations", label: "Integrations", icon: Plug },
 ];
 
 export function Sidebar() {

@@ -1,4 +1,30 @@
-import { api } from "./client";
+import { ApiError } from "./client";
+
+const BOOKING_BASE =
+  process.env.NEXT_PUBLIC_BOOKING_URL ?? "http://localhost:8084";
+
+async function bookingRequest<T>(
+  path: string,
+  opts: { method?: string; body?: unknown; tenantId?: string } = {},
+): Promise<T> {
+  const { method = "GET", body, tenantId } = opts;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (tenantId) headers["X-Tenant-ID"] = tenantId;
+
+  const res = await fetch(`${BOOKING_BASE}${path}`, {
+    method,
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+
+  if (!res.ok) {
+    let errBody: unknown;
+    try { errBody = await res.json(); } catch { /* ignore */ }
+    throw new ApiError(res.status, `${res.status} ${res.statusText}`, errBody);
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json() as Promise<T>;
+}
 
 export type BookingStatus =
   | "pending"
@@ -27,7 +53,7 @@ export interface ListBookingsParams {
 }
 
 export interface ListBookingsResponse {
-  bookings: Booking[];
+  data: Booking[];
   total: number;
 }
 
@@ -50,22 +76,22 @@ export const bookingsApi = {
     if (params.limit !== undefined) qs.set("limit", String(params.limit));
     if (params.offset !== undefined) qs.set("offset", String(params.offset));
     const query = qs.toString() ? `?${qs}` : "";
-    return api.get(`/v1/bookings${query}`, { tenantId });
+    return bookingRequest<ListBookingsResponse>(`/v1/bookings${query}`, { tenantId });
   },
 
   get(id: string, tenantId: string): Promise<Booking> {
-    return api.get(`/v1/bookings/${id}`, { tenantId });
+    return bookingRequest<Booking>(`/v1/bookings/${id}`, { tenantId });
   },
 
   create(body: CreateBookingBody, tenantId: string): Promise<Booking> {
-    return api.post("/v1/bookings", body, { tenantId });
+    return bookingRequest<Booking>("/v1/bookings", { method: "POST", body, tenantId });
   },
 
   updateStatus(id: string, body: UpdateBookingBody, tenantId: string): Promise<Booking> {
-    return api.patch(`/v1/bookings/${id}`, body, { tenantId });
+    return bookingRequest<Booking>(`/v1/bookings/${id}`, { method: "PATCH", body, tenantId });
   },
 
   cancel(id: string, tenantId: string): Promise<void> {
-    return api.delete(`/v1/bookings/${id}`, { tenantId });
+    return bookingRequest<void>(`/v1/bookings/${id}`, { method: "DELETE", tenantId });
   },
 };

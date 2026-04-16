@@ -133,7 +133,7 @@ export default function TenantBookingsPage({
     formState: { errors },
   } = useForm<CreateForm>({ resolver: zodResolver(createSchema) });
 
-  const bookings = bookingsQuery.data?.bookings ?? [];
+  const bookings = bookingsQuery.data?.data ?? [];
   const total = bookingsQuery.data?.total ?? 0;
   const totalPages = Math.ceil(total / limit);
 

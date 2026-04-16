@@ -51,6 +51,22 @@ func New(target *url.URL, log *slog.Logger) *httputil.ReverseProxy {
 		req.Host = target.Host
 	}
 
+	// Strip CORS headers from the upstream response.  The gateway's CORS
+	// middleware (outermost layer) is responsible for setting them on the
+	// final client response.  If the upstream also sets them — which it does
+	// when the backend services include their own CORS middleware for direct
+	// health-check calls — httputil.ReverseProxy would copy them, producing
+	// duplicate Access-Control-Allow-Origin values that browsers reject.
+	rp.ModifyResponse = func(res *http.Response) error {
+		res.Header.Del("Access-Control-Allow-Origin")
+		res.Header.Del("Access-Control-Allow-Methods")
+		res.Header.Del("Access-Control-Allow-Headers")
+		res.Header.Del("Access-Control-Allow-Credentials")
+		res.Header.Del("Access-Control-Max-Age")
+		res.Header.Del("Access-Control-Expose-Headers")
+		return nil
+	}
+
 	rp.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		log.Error("upstream error",
 			slog.String("target", target.String()),

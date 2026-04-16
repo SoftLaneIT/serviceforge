@@ -106,7 +106,7 @@ export default function TenantsPage() {
     defaultValues: { plan: "starter" },
   });
 
-  const tenants = data?.tenants ?? [];
+  const tenants = data?.data ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / limit);
 

@@ -85,7 +85,9 @@ export function IssueKeyDialog({ open, onClose, tenantId, queryKey }: IssueKeyDi
           moduleScope: values.moduleScope
             ? values.moduleScope.split(",").map((s) => s.trim()).filter(Boolean)
             : [],
-          expiresAt: values.expiresAt || undefined,
+          expiresAt: values.expiresAt
+        ? new Date(values.expiresAt).toISOString()
+        : undefined,
         },
         tenantId,
       ),

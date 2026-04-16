@@ -32,7 +32,7 @@ export default function KeysPage() {
 
   const tenantOptions = [
     { value: "", label: "Select a tenant…" },
-    ...(tenantsQuery.data?.tenants ?? []).map((t) => ({
+    ...(tenantsQuery.data?.data ?? []).map((t) => ({
       value: t.id,
       label: `${t.name} (${t.slug})`,
     })),
@@ -84,7 +84,7 @@ export default function KeysPage() {
               <PageSpinner />
             ) : (
               <KeysTable
-                keys={keysQuery.data ?? []}
+                keys={keysQuery.data?.data ?? []}
                 tenantId={selectedTenantId}
                 queryKey={keysQueryKey}
               />

@@ -21,7 +21,7 @@ export interface ListTenantsParams {
 }
 
 export interface ListTenantsResponse {
-  tenants: Tenant[];
+  data: Tenant[];
   total: number;
   limit: number;
   offset: number;

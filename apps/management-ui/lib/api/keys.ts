@@ -28,8 +28,13 @@ export interface IssueKeyResponse extends ApiKey {
   rawKey: string;
 }
 
+export interface ListKeysResponse {
+  data: ApiKey[];
+  total: number;
+}
+
 export const keysApi = {
-  list(tenantId: string): Promise<ApiKey[]> {
+  list(tenantId: string): Promise<ListKeysResponse> {
     return api.get("/v1/keys", { tenantId });
   },
 

@@ -77,7 +77,7 @@ export default function BookingsPage() {
 
   const tenantOptions = [
     { value: "", label: "Select a tenant…" },
-    ...(tenantsQuery.data?.tenants ?? []).map((t) => ({
+    ...(tenantsQuery.data?.data ?? []).map((t) => ({
       value: t.id,
       label: `${t.name} (${t.slug})`,
     })),
@@ -135,7 +135,7 @@ export default function BookingsPage() {
     formState: { errors },
   } = useForm<CreateForm>({ resolver: zodResolver(createSchema) });
 
-  const bookings = bookingsQuery.data?.bookings ?? [];
+  const bookings = bookingsQuery.data?.data ?? [];
   const total = bookingsQuery.data?.total ?? 0;
   const totalPages = Math.ceil(total / limit);
 

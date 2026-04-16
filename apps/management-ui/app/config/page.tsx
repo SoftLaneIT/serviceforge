@@ -48,14 +48,14 @@ function HistoryPanel({
       <CardContent>
         {historyQuery.isLoading ? (
           <PageSpinner />
-        ) : !historyQuery.data?.length ? (
+        ) : !historyQuery.data?.data?.length ? (
           <p className="text-sm text-slate-500">No history yet.</p>
         ) : (
           <div className="space-y-3">
-            {historyQuery.data.map((entry) => (
+            {historyQuery.data.data.map((entry) => (
               <div key={entry.id} className="rounded-lg border border-slate-100 p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-slate-500">{formatDate(entry.createdAt)}</span>
+                  <span className="text-xs text-slate-500">{formatDate(entry.changedAt)}</span>
                   <span className="text-xs font-mono text-slate-400">{entry.changedBy}</span>
                 </div>
                 <pre className="text-xs font-mono bg-slate-50 rounded p-2 overflow-x-auto scrollbar-thin">
@@ -122,7 +122,7 @@ export default function ConfigPage() {
 
   const tenantOptions = [
     { value: "", label: "Select a tenant…" },
-    ...(tenantsQuery.data?.tenants ?? []).map((t) => ({
+    ...(tenantsQuery.data?.data ?? []).map((t) => ({
       value: t.id,
       label: `${t.name} (${t.slug})`,
     })),

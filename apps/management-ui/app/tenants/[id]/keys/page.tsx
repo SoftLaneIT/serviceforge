@@ -74,7 +74,7 @@ export default function TenantKeysPage({
               <PageSpinner />
             ) : (
               <KeysTable
-                keys={keysQuery.data ?? []}
+                keys={keysQuery.data?.data ?? []}
                 tenantId={id}
                 queryKey={queryKey}
               />
