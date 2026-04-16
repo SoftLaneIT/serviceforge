@@ -31,7 +31,7 @@ async function configRequest<T>(
 // 
 
 export interface XUiHint {
-  component?: "number_input" | "toggle" | "slider" | "nested_form" | "select" | "text_input";
+  component?: "number_input" | "toggle" | "slider" | "nested_form" | "select" | "text_input" | "color" | "time_input" | "url_input";
   step?: number;
   options?: string[];
 }

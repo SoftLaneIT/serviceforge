@@ -156,6 +156,103 @@ function SliderField({
   );
 }
 
+// Color picker (hex string)
+function ColorField({
+  name,
+  value,
+  onChange,
+  prop,
+  required,
+}: {
+  name: string;
+  value: string;
+  onChange: (v: string) => void;
+  prop: JsonSchemaProperty;
+  required?: boolean;
+}) {
+  return (
+    <div className="rounded-lg border border-slate-100 bg-white p-3">
+      <FieldLabel name={name} description={prop.description} required={required} />
+      <div className="flex items-center gap-3 mt-1">
+        <input
+          type="color"
+          value={value || "#000000"}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-9 w-14 cursor-pointer rounded-md border border-slate-200 p-0.5"
+        />
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="#000000"
+          className="w-32 rounded-md border border-slate-200 px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
+        />
+        {value && (
+          <span
+            className="h-6 w-6 rounded-full border border-slate-200 shrink-0"
+            style={{ backgroundColor: value }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// URL input
+function UrlField({
+  name,
+  value,
+  onChange,
+  prop,
+  required,
+}: {
+  name: string;
+  value: string;
+  onChange: (v: string) => void;
+  prop: JsonSchemaProperty;
+  required?: boolean;
+}) {
+  return (
+    <div className="rounded-lg border border-slate-100 bg-white p-3">
+      <FieldLabel name={name} description={prop.description} required={required} />
+      <input
+        type="url"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="https://"
+        className="w-full rounded-md border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+      />
+    </div>
+  );
+}
+
+// Time input (HH:MM strings used by business-hours)
+function TimeField({
+  name,
+  value,
+  onChange,
+  prop,
+  required,
+}: {
+  name: string;
+  value: string;
+  onChange: (v: string) => void;
+  prop: JsonSchemaProperty;
+  required?: boolean;
+}) {
+  return (
+    <div className="rounded-lg border border-slate-100 bg-white p-3">
+      <FieldLabel name={name} description={prop.description} required={required} />
+      <input
+        type="time"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="rounded-md border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+      />
+    </div>
+  );
+}
+
 // String input
 function StringField({
   name,
@@ -329,7 +426,49 @@ function SchemaField({
     );
   }
 
-  // string / fallback
+  // string — detect specialised variants before falling back to plain text
+  if (prop.type === "string" || prop.type === undefined) {
+    const strVal = String(value ?? prop.default ?? "");
+
+    // Color: field name ends with "Color" or description mentions "hex"
+    const isColor =
+      component === "color" ||
+      /color$/i.test(name) ||
+      /hex code/i.test(prop.description ?? "");
+    if (isColor) {
+      return (
+        <ColorField name={name} prop={prop} value={strVal} required={required} onChange={onChange} />
+      );
+    }
+
+    // Time: field name ends with "Time" or description mentions "HH:MM"
+    const isTime =
+      component === "time_input" ||
+      /Time$/i.test(name) ||
+      /HH:MM/i.test(prop.description ?? "");
+    if (isTime) {
+      return (
+        <TimeField name={name} prop={prop} value={strVal} required={required} onChange={onChange} />
+      );
+    }
+
+    // URL: field name ends with "Url" / "URL" or description mentions URL
+    const isUrl =
+      component === "url_input" ||
+      /Url$/i.test(name) ||
+      /\bURL\b/i.test(prop.description ?? "");
+    if (isUrl) {
+      return (
+        <UrlField name={name} prop={prop} value={strVal} required={required} onChange={onChange} />
+      );
+    }
+
+    return (
+      <StringField name={name} prop={prop} value={strVal} required={required} onChange={onChange} />
+    );
+  }
+
+  // fallback
   return (
     <StringField
       name={name}

@@ -8,7 +8,7 @@
 
 "use client";
 
-import { use, useEffect } from "react";
+import { use, useEffect, Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -48,11 +48,8 @@ const subNavLinks = (id: string) => [
   { href: `/tenants/${id}/config`,   label: "Config",       icon: Settings2 },
 ];
 
-export default function TenantDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+// Inner component — safe to call use(params) here because it's wrapped in Suspense
+function TenantDetailContent({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -97,110 +94,123 @@ export default function TenantDetailPage({
   }, [tenant, reset]);
 
   return (
-    <Shell>
-      <div className="space-y-6 max-w-2xl">
-        <div className="flex items-center gap-3">
-          <Link href="/tenants">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="h-4 w-4" />
-              Tenants
-            </Button>
-          </Link>
-        </div>
-
-        {isLoading ? (
-          <PageSpinner />
-        ) : !tenant ? (
-          <p className="text-sm text-slate-500">Tenant not found.</p>
-        ) : (
-          <>
-            {/* Header */}
-            <div className="flex items-start justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-semibold text-slate-900">{tenant.name}</h2>
-                  <TenantStatusBadge status={tenant.status} />
-                  <PlanBadge plan={tenant.plan} />
-                </div>
-                <p className="text-sm text-slate-500 mt-0.5 font-mono">{tenant.slug}</p>
-              </div>
-            </div>
-
-            {/* Sub-nav quick links */}
-            <div className="flex gap-2 flex-wrap">
-              {subNavLinks(id).map((l) => (
-                <Link key={l.href} href={l.href}>
-                  <Button variant="outline" size="sm">
-                    <l.icon className="h-3.5 w-3.5" />
-                    {l.label}
-                  </Button>
-                </Link>
-              ))}
-            </div>
-
-            {/* Meta */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Details</CardTitle>
-              </CardHeader>
-              <CardContent className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">ID</p>
-                  <p className="font-mono text-xs mt-1 text-slate-700">{tenant.id}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Created</p>
-                  <p className="mt-1 text-slate-700">{formatDate(tenant.createdAt)}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Updated</p>
-                  <p className="mt-1 text-slate-700">{formatDate(tenant.updatedAt)}</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Edit form */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Edit Tenant</CardTitle>
-                <CardDescription>Update name, plan, or settings.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form
-                  onSubmit={handleSubmit((v) => updateMutation.mutate(v))}
-                  className="space-y-4"
-                >
-                  <Input
-                    label="Name"
-                    error={errors.name?.message}
-                    {...register("name")}
-                  />
-                  <Select
-                    label="Plan"
-                    options={planOptions}
-                    error={errors.plan?.message}
-                    {...register("plan")}
-                  />
-                  <Textarea
-                    label="Settings (JSON)"
-                    rows={5}
-                    className="font-mono text-xs"
-                    hint="Free-form JSON metadata for this tenant"
-                    error={errors.settings?.message}
-                    {...register("settings")}
-                  />
-                  <div className="flex justify-end">
-                    <Button type="submit" loading={updateMutation.isPending}>
-                      <Save className="h-4 w-4" />
-                      Save Changes
-                    </Button>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-          </>
-        )}
+    <div className="space-y-6 max-w-2xl">
+      <div className="flex items-center gap-3">
+        <Link href="/tenants">
+          <Button variant="ghost" size="sm">
+            <ArrowLeft className="h-4 w-4" />
+            Tenants
+          </Button>
+        </Link>
       </div>
+
+      {isLoading ? (
+        <PageSpinner />
+      ) : !tenant ? (
+        <p className="text-sm text-slate-500">Tenant not found.</p>
+      ) : (
+        <>
+          {/* Header */}
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold text-slate-900">{tenant.name}</h2>
+                <TenantStatusBadge status={tenant.status} />
+                <PlanBadge plan={tenant.plan} />
+              </div>
+              <p className="text-sm text-slate-500 mt-0.5 font-mono">{tenant.slug}</p>
+            </div>
+          </div>
+
+          {/* Sub-nav quick links */}
+          <div className="flex gap-2 flex-wrap">
+            {subNavLinks(id).map((l) => (
+              <Link key={l.href} href={l.href}>
+                <Button variant="outline" size="sm">
+                  <l.icon className="h-3.5 w-3.5" />
+                  {l.label}
+                </Button>
+              </Link>
+            ))}
+          </div>
+
+          {/* Meta */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Details</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">ID</p>
+                <p className="font-mono text-xs mt-1 text-slate-700">{tenant.id}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Created</p>
+                <p className="mt-1 text-slate-700">{formatDate(tenant.createdAt)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Updated</p>
+                <p className="mt-1 text-slate-700">{formatDate(tenant.updatedAt)}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Edit form */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Edit Tenant</CardTitle>
+              <CardDescription>Update name, plan, or settings.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form
+                onSubmit={handleSubmit((v) => updateMutation.mutate(v))}
+                className="space-y-4"
+              >
+                <Input
+                  label="Name"
+                  error={errors.name?.message}
+                  {...register("name")}
+                />
+                <Select
+                  label="Plan"
+                  options={planOptions}
+                  error={errors.plan?.message}
+                  {...register("plan")}
+                />
+                <Textarea
+                  label="Settings (JSON)"
+                  rows={5}
+                  className="font-mono text-xs"
+                  hint="Free-form JSON metadata for this tenant"
+                  error={errors.settings?.message}
+                  {...register("settings")}
+                />
+                <div className="flex justify-end">
+                  <Button type="submit" loading={updateMutation.isPending}>
+                    <Save className="h-4 w-4" />
+                    Save Changes
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Outer page wraps the content in Suspense so use(params) has a boundary above it
+export default function TenantDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  return (
+    <Shell>
+      <Suspense fallback={<PageSpinner />}>
+        <TenantDetailContent params={params} />
+      </Suspense>
     </Shell>
   );
 }

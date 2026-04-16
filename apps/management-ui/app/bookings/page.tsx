@@ -288,7 +288,13 @@ export default function BookingsPage() {
         description="Create a booking for this tenant."
       >
         <form
-          onSubmit={handleSubmit((v) => createMutation.mutate(v))}
+          onSubmit={handleSubmit((v) =>
+            createMutation.mutate({
+              ...v,
+              slotStart: new Date(v.slotStart).toISOString(),
+              slotEnd:   new Date(v.slotEnd).toISOString(),
+            })
+          )}
           className="space-y-4"
         >
           <Input
