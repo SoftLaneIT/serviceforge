@@ -143,6 +143,7 @@ type cacheKey struct {
 
 type cacheEntry struct {
 	raw       map[string]any
+	isDefault bool
 	expiresAt time.Time
 }
 
@@ -179,16 +180,18 @@ type configResponse struct {
 	IsDefault bool           `json:"isDefault"`
 }
 
-// fetch retrieves the raw config map for (tenantID, module), using the cache
-// when the entry is still fresh.
-func (c *Client) fetch(ctx context.Context, tenantID, module string) (map[string]any, error) {
+// fetchFull retrieves the full config response for (tenantID, module), using the
+// cache when the entry is still fresh.  It returns both the raw config map and
+// the isDefault flag so callers can decide whether to fall back to permissive
+// defaults for modules the tenant has never explicitly configured.
+func (c *Client) fetchFull(ctx context.Context, tenantID, module string) (map[string]any, bool, error) {
 	key := cacheKey{tenantID: tenantID, module: module}
 
 	// Fast-path: read from cache.
 	c.mu.RLock()
 	if entry, ok := c.cache[key]; ok && time.Now().Before(entry.expiresAt) {
 		c.mu.RUnlock()
-		return entry.raw, nil
+		return entry.raw, entry.isDefault, nil
 	}
 	c.mu.RUnlock()
 
@@ -196,31 +199,37 @@ func (c *Client) fetch(ctx context.Context, tenantID, module string) (map[string
 	url := fmt.Sprintf("%s/v1/config/%s", c.baseURL, module)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("configclient: build request: %w", err)
+		return nil, false, fmt.Errorf("configclient: build request: %w", err)
 	}
 	req.Header.Set("X-Tenant-ID", tenantID)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("configclient: http request: %w", err)
+		return nil, false, fmt.Errorf("configclient: http request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("configclient: unexpected status %d for module %s", resp.StatusCode, module)
+		return nil, false, fmt.Errorf("configclient: unexpected status %d for module %s", resp.StatusCode, module)
 	}
 
 	var body configResponse
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return nil, fmt.Errorf("configclient: decode response: %w", err)
+		return nil, false, fmt.Errorf("configclient: decode response: %w", err)
 	}
 
 	// Write to cache.
 	c.mu.Lock()
-	c.cache[key] = cacheEntry{raw: body.Config, expiresAt: time.Now().Add(c.ttl)}
+	c.cache[key] = cacheEntry{raw: body.Config, isDefault: body.IsDefault, expiresAt: time.Now().Add(c.ttl)}
 	c.mu.Unlock()
 
-	return body.Config, nil
+	return body.Config, body.IsDefault, nil
+}
+
+// fetch is a convenience wrapper that discards the isDefault flag.
+func (c *Client) fetch(ctx context.Context, tenantID, module string) (map[string]any, error) {
+	raw, _, err := c.fetchFull(ctx, tenantID, module)
+	return raw, err
 }
 
 // decode re-marshals raw into dst using JSON round-trip so that struct tags
@@ -263,9 +272,17 @@ func (c *Client) GetBookingConfig(ctx context.Context, tenantID string) BookingC
 
 // GetBusinessHoursConfig returns the business-hours module config for tenantID.
 // Falls back to permissive defaults (all hours allowed) on any error.
+//
+// If the config-service indicates that the tenant is still using the module
+// schema defaults (isDefault=true), this method also returns the permissive
+// default rather than enforcing the schema's example hours.  Business-hours
+// enforcement only activates once a tenant has explicitly saved their own
+// schedule via PUT /v1/config/business-hours.
 func (c *Client) GetBusinessHoursConfig(ctx context.Context, tenantID string) BusinessHoursCfg {
-	raw, err := c.fetch(ctx, tenantID, "business-hours")
-	if err != nil {
+	raw, isDefault, err := c.fetchFull(ctx, tenantID, "business-hours")
+	if err != nil || isDefault {
+		// Either config-service unreachable OR tenant hasn't configured a
+		// custom schedule — either way use the permissive in-process default.
 		return defaultBusinessHoursCfg()
 	}
 	var cfg BusinessHoursCfg

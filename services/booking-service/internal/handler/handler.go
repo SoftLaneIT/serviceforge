@@ -389,6 +389,11 @@ func (h *Handler) CancelBooking(w http.ResponseWriter, r *http.Request) {
 
 // checkBusinessHours returns a descriptive error when slotStart or slotEnd
 // falls outside the tenant's configured operating hours for that day.
+//
+// For multi-day bookings the start and end are checked against their respective
+// day schedules independently, so a booking that genuinely spans into the next
+// day is not incorrectly rejected by comparing the end time to the start day's
+// closing time.
 func checkBusinessHours(cfg configclient.BusinessHoursCfg, slotStart, slotEnd time.Time) error {
 	loc, err := time.LoadLocation(cfg.Timezone)
 	if err != nil {
@@ -398,34 +403,45 @@ func checkBusinessHours(cfg configclient.BusinessHoursCfg, slotStart, slotEnd ti
 	start := slotStart.In(loc)
 	end := slotEnd.In(loc)
 
-	dayName := strings.ToLower(start.Weekday().String())
-	schedule := dayScheduleFor(cfg, dayName)
+	// ── Check the start day ──────────────────────────────────────────────────
+	startDayName := strings.ToLower(start.Weekday().String())
+	startSched := dayScheduleFor(cfg, startDayName)
 
-	if !schedule.Open {
-		return fmt.Errorf("business is closed on %s", dayName)
+	if !startSched.Open {
+		return fmt.Errorf("business is closed on %s", startDayName)
 	}
 
-	openH, openM := parseHHMM(schedule.OpenTime)
-	closeH, closeM := parseHHMM(schedule.CloseTime)
-
-	y, mo, d := start.Date()
-	openTime := time.Date(y, mo, d, openH, openM, 0, 0, loc)
-	closeTime := time.Date(y, mo, d, closeH, closeM, 0, 0, loc)
+	sy, smo, sd := start.Date()
+	openH, openM := parseHHMM(startSched.OpenTime)
+	openTime := time.Date(sy, smo, sd, openH, openM, 0, 0, loc)
 
 	if start.Before(openTime) {
-		return fmt.Errorf("slot starts before opening time (%s)", schedule.OpenTime)
-	}
-	if end.After(closeTime) {
-		return fmt.Errorf("slot ends after closing time (%s)", schedule.CloseTime)
+		return fmt.Errorf("slot starts before opening time (%s)", startSched.OpenTime)
 	}
 
-	// Break-time check.
-	if cfg.BreakDurationMinutes > 0 && cfg.BreakStartTime != "" {
+	// ── Check the end time against the end day's schedule ───────────────────
+	// Using the end day (not start day) means multi-day bookings are evaluated
+	// correctly; the close time is anchored to the day on which the slot ends.
+	endDayName := strings.ToLower(end.Weekday().String())
+	endSched := dayScheduleFor(cfg, endDayName)
+
+	ey, emo, ed := end.Date()
+	closeH, closeM := parseHHMM(endSched.CloseTime)
+	closeTime := time.Date(ey, emo, ed, closeH, closeM, 0, 0, loc)
+
+	if end.After(closeTime) {
+		return fmt.Errorf("slot ends after closing time (%s)", endSched.CloseTime)
+	}
+
+	// ── Break-time check (same-day bookings only) ────────────────────────────
+	startDate := time.Date(sy, smo, sd, 0, 0, 0, 0, loc)
+	endDate := time.Date(ey, emo, ed, 0, 0, 0, 0, loc)
+	if startDate.Equal(endDate) && cfg.BreakDurationMinutes > 0 && cfg.BreakStartTime != "" {
 		breakH, breakM := parseHHMM(cfg.BreakStartTime)
-		breakStart := time.Date(y, mo, d, breakH, breakM, 0, 0, loc)
+		breakStart := time.Date(sy, smo, sd, breakH, breakM, 0, 0, loc)
 		breakEnd := breakStart.Add(time.Duration(cfg.BreakDurationMinutes) * time.Minute)
 
-		// The slot overlaps with the break if it starts before the break ends
+		// The slot overlaps the break if it starts before the break ends
 		// AND ends after the break starts.
 		if start.Before(breakEnd) && end.After(breakStart) {
 			return fmt.Errorf("slot overlaps with the business break (%s – %s min)",
