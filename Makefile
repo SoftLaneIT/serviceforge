@@ -127,9 +127,17 @@ booking:
 config:
 	cd services/config-service && go run ./cmd/server
 
-## ui: start the management UI dev server
+## ui: start the management UI dev server (local, hot-reload)
 ui:
 	cd apps/management-ui && npm run dev
+
+## ui-install: install management UI npm dependencies
+ui-install:
+	cd apps/management-ui && npm install
+
+## ui-build: build the management UI production bundle
+ui-build:
+	cd apps/management-ui && npm run build
 
 # ── help ──────────────────────────────────────────────────────────────────────
 
