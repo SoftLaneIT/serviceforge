@@ -16,55 +16,147 @@
  * under the LICENSE.
  */
 
+// Command server is the entry point for the config-service.
+//
+// Environment variables:
+//
+//	PORT           HTTP listen port (default: 8085)
+//	DATABASE_URL   PostgreSQL connection string (required)
+//	KAFKA_BROKERS  Comma-separated broker addresses (default: localhost:9092)
+//	KAFKA_ENABLED  Set to "false" to disable Kafka publishing (default: true)
+//	LOG_LEVEL      debug | info | warn | error (default: info)
+//	LOG_FORMAT     json | text (default: json)
 package main
 
 import (
-	"encoding/json"
-	"log"
+	"context"
+	"errors"
+	"log/slog"
 	"net/http"
+	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/SoftLaneIT/serviceforge/packages/go-common/config"
+	"github.com/SoftLaneIT/serviceforge/packages/go-common/logger"
 	"github.com/SoftLaneIT/serviceforge/packages/go-common/tenant"
+	"github.com/SoftLaneIT/serviceforge/services/config-service/internal/events"
+	"github.com/SoftLaneIT/serviceforge/services/config-service/internal/handler"
+	"github.com/SoftLaneIT/serviceforge/services/config-service/internal/repository"
 )
 
 func main() {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		respondJSON(w, http.StatusOK, map[string]any{"service": "config-service", "status": "ok"})
-	})
-	mux.HandleFunc("/v1/config/booking", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			respondJSON(w, http.StatusOK, map[string]any{
-				"tenantId":            tenant.FromContext(r.Context()),
-				"slotDurationMinutes": 30,
-				"maxBookingsPerDay":   100,
-				"autoConfirm":         true,
-			})
-		case http.MethodPut:
-			var payload map[string]any
-			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-				http.Error(w, "invalid payload", http.StatusBadRequest)
-				return
-			}
-			respondJSON(w, http.StatusOK, map[string]any{
-				"tenantId": tenant.FromContext(r.Context()),
-				"updated":  payload,
-			})
-		default:
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
+	log := logger.NewFromEnv("config-service")
 
-	port := config.GetEnv("PORT", "8084")
-	log.Printf("config-service listening on :%s", port)
-	if err := http.ListenAndServe(":"+port, tenant.Middleware(mux)); err != nil {
-		log.Fatal(err)
+	// ── database ──────────────────────────────────────────────────────────────
+	dsn := config.GetEnv("DATABASE_URL",
+		"postgres://serviceforge:serviceforge@localhost:5432/serviceforge?sslmode=disable")
+	pool := mustConnectPool(log, dsn)
+	defer pool.Close()
+
+	// ── kafka publisher ───────────────────────────────────────────────────────
+	var pub events.Publisher
+	if config.GetEnv("KAFKA_ENABLED", "true") != "false" {
+		brokersRaw := config.GetEnv("KAFKA_BROKERS", "localhost:9092")
+		brokers := strings.Split(brokersRaw, ",")
+		pub = events.NewKafka(brokers)
+		log.Info("kafka publisher enabled", slog.String("brokers", brokersRaw))
+	} else {
+		pub = events.NoopPublisher{}
+		log.Info("kafka publisher disabled (KAFKA_ENABLED=false)")
 	}
+	defer pub.Close()
+
+	// ── repository + handler ──────────────────────────────────────────────────
+	repo := repository.NewPostgres(pool)
+	h := handler.New(repo, pub, log)
+
+	// ── HTTP server ───────────────────────────────────────────────────────────
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+
+	httpHandler := tenant.Middleware(logger.HTTPMiddleware(log)(mux))
+
+	port := config.GetEnv("PORT", "8085")
+	srv := &http.Server{
+		Addr:         ":" + port,
+		Handler:      httpHandler,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+
+	serverErr := make(chan error, 1)
+	go func() {
+		log.Info("config-service starting", slog.String("port", port))
+		if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+			serverErr <- err
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
+
+	select {
+	case sig := <-quit:
+		log.Info("shutdown signal received", slog.String("signal", sig.String()))
+	case err := <-serverErr:
+		log.Error("server error", slog.Any("error", err))
+		os.Exit(1)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Error("forced shutdown", slog.Any("error", err))
+	}
+	log.Info("config-service stopped")
 }
 
-func respondJSON(w http.ResponseWriter, status int, payload any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(payload)
+func mustConnectPool(log *slog.Logger, dsn string) *pgxpool.Pool {
+	const maxAttempts = 5
+
+	cfg, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		log.Error("invalid DATABASE_URL", slog.Any("error", err))
+		os.Exit(1)
+	}
+
+	cfg.MaxConns = 10
+	cfg.MinConns = 2
+	cfg.MaxConnLifetime = 1 * time.Hour
+	cfg.MaxConnIdleTime = 5 * time.Minute
+
+	ctx := context.Background()
+	var pool *pgxpool.Pool
+
+	for attempt := range maxAttempts {
+		pool, err = pgxpool.NewWithConfig(ctx, cfg)
+		if err == nil {
+			if pingErr := pool.Ping(ctx); pingErr == nil {
+				log.Info("database connected", slog.Int("attempt", attempt+1))
+				return pool
+			} else {
+				pool.Close()
+				err = pingErr
+			}
+		}
+		wait := time.Duration(1<<attempt) * time.Second
+		log.Warn("database not ready, retrying",
+			slog.Int("attempt", attempt+1),
+			slog.Int("maxAttempts", maxAttempts),
+			slog.Duration("retryIn", wait),
+			slog.Any("error", err),
+		)
+		time.Sleep(wait)
+	}
+
+	log.Error("could not connect to database after retries", slog.Any("error", err))
+	os.Exit(1)
+	return nil
 }
