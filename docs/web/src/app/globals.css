@@ -210,6 +210,88 @@ a:hover {
   color: inherit;
 }
 
+/* Tables */
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  font-size: 0.95rem;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
+.prose thead {
+  background: rgba(102, 252, 241, 0.06);
+}
+
+.prose th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-accent);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.prose td {
+  padding: 0.7rem 1rem;
+  color: var(--text-secondary);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  vertical-align: top;
+}
+
+.prose tr:last-child td {
+  border-bottom: none;
+}
+
+.prose tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.prose td code, .prose th code {
+  font-size: 0.85em;
+  color: var(--text-accent);
+  background: rgba(102, 252, 241, 0.08);
+}
+
+/* Blockquotes (used for notes/warnings) */
+.prose blockquote {
+  border-left: 3px solid var(--text-accent);
+  margin: 1.5rem 0;
+  padding: 0.75rem 1.25rem;
+  background: rgba(102, 252, 241, 0.04);
+  border-radius: 0 8px 8px 0;
+}
+
+.prose blockquote p {
+  margin-bottom: 0;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+/* Horizontal rule */
+.prose hr {
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin: 2.5rem 0;
+}
+
+/* Strong / bold */
+.prose strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* Inline code accent for method names */
+.prose p code, .prose li code, .prose td code {
+  color: var(--text-accent);
+  background: rgba(102, 252, 241, 0.08);
+  border: 1px solid rgba(102, 252, 241, 0.15);
+}
+
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
