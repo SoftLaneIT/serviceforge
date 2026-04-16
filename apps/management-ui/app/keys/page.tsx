@@ -8,8 +8,9 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTenant } from "@/lib/context/tenant-context";
 import { Shell } from "@/components/layout/shell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,8 +23,13 @@ import { keysApi } from "@/lib/api/keys";
 import { Plus } from "lucide-react";
 
 export default function KeysPage() {
+  const { activeTenant } = useTenant();
   const [issueOpen, setIssueOpen] = useState(false);
-  const [selectedTenantId, setSelectedTenantId] = useState("");
+  const [selectedTenantId, setSelectedTenantId] = useState(activeTenant?.id ?? "");
+
+  useEffect(() => {
+    if (activeTenant?.id) setSelectedTenantId(activeTenant.id);
+  }, [activeTenant?.id]);
 
   const tenantsQuery = useQuery({
     queryKey: ["tenants", "all"],

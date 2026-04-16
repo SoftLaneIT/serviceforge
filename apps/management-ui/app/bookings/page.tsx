@@ -8,8 +8,9 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTenant } from "@/lib/context/tenant-context";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -62,7 +63,12 @@ const statusFilterOptions = [
 export default function BookingsPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [selectedTenantId, setSelectedTenantId] = useState("");
+  const { activeTenant } = useTenant();
+  const [selectedTenantId, setSelectedTenantId] = useState(activeTenant?.id ?? "");
+
+  useEffect(() => {
+    if (activeTenant?.id) { setSelectedTenantId(activeTenant.id); setPage(0); }
+  }, [activeTenant?.id]);
   const [statusFilter, setStatusFilter] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Booking | null>(null);

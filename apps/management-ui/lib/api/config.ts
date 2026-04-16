@@ -26,10 +26,55 @@ async function configRequest<T>(
   return res.json() as Promise<T>;
 }
 
+// 
+// x-ui schema hint types
+// 
+
+export interface XUiHint {
+  component?: "number_input" | "toggle" | "slider" | "nested_form" | "select" | "text_input";
+  step?: number;
+  options?: string[];
+}
+
+export interface JsonSchemaProperty {
+  type?: string;
+  description?: string;
+  minimum?: number;
+  maximum?: number;
+  default?: unknown;
+  enum?: unknown[];
+  properties?: Record<string, JsonSchemaProperty>;
+  required?: string[];
+  additionalProperties?: boolean;
+  "x-ui"?: XUiHint;
+}
+
+export interface JsonSchema {
+  $schema?: string;
+  type?: string;
+  title?: string;
+  description?: string;
+  properties?: Record<string, JsonSchemaProperty>;
+  required?: string[];
+  additionalProperties?: boolean;
+}
+
+// 
+// API response types
+// 
+
 export interface ModuleSummary {
   module: string;
-  schemaVersion: string;
-  description: string;
+  version: number;
+  schema: JsonSchema;
+  defaults: Record<string, unknown>;
+  description?: string;
+  createdAt: string;
+}
+
+export interface ListModulesResponse {
+  data: ModuleSummary[];
+  total: number;
 }
 
 export interface ModuleConfig {
@@ -55,13 +100,17 @@ export interface ListHistoryResponse {
   total: number;
 }
 
+// 
+// API
+// 
+
 export const configApi = {
-  listModules(): Promise<ModuleSummary[]> {
-    return configRequest<ModuleSummary[]>("/v1/modules");
+  listModules(): Promise<ListModulesResponse> {
+    return configRequest<ListModulesResponse>("/v1/modules");
   },
 
-  getSchema(module: string): Promise<Record<string, unknown>> {
-    return configRequest<Record<string, unknown>>(`/v1/modules/${module}/schema`);
+  getSchema(module: string): Promise<ModuleSummary> {
+    return configRequest<ModuleSummary>(`/v1/modules/${module}/schema`);
   },
 
   getConfig(module: string, tenantId: string): Promise<ModuleConfig> {

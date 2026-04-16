@@ -6,12 +6,12 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   Building2,
-  Key,
-  CalendarDays,
-  Settings2,
-  Zap,
+  KeyRound,
+  CalendarCheck2,
+  SlidersHorizontal,
+  Plug2,
   ChevronRight,
-  Plug,
+  Zap,
 } from "lucide-react";
 
 interface NavItem {
@@ -22,12 +22,12 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { href: "/dashboard",    label: "Dashboard",    icon: LayoutDashboard, exact: true },
+  { href: "/dashboard",    label: "Dashboard",    icon: LayoutDashboard,    exact: true },
   { href: "/tenants",      label: "Tenants",      icon: Building2 },
-  { href: "/keys",         label: "API Keys",     icon: Key },
-  { href: "/bookings",     label: "Bookings",     icon: CalendarDays },
-  { href: "/config",       label: "Config",       icon: Settings2 },
-  { href: "/integrations", label: "Integrations", icon: Plug },
+  { href: "/keys",         label: "API Keys",     icon: KeyRound },
+  { href: "/bookings",     label: "Bookings",     icon: CalendarCheck2 },
+  { href: "/config",       label: "Config",       icon: SlidersHorizontal },
+  { href: "/integrations", label: "Integrations", icon: Plug2 },
 ];
 
 export function Sidebar() {
@@ -40,7 +40,7 @@ export function Sidebar() {
     <aside className="flex h-full w-60 shrink-0 flex-col border-r border-slate-200 bg-white">
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 shadow-sm">
           <Zap className="h-4 w-4 text-white" />
         </div>
         <div>
@@ -65,7 +65,10 @@ export function Sidebar() {
               )}
             >
               <item.icon
-                className={cn("h-4 w-4 shrink-0", active ? "text-brand-600" : "text-slate-400")}
+                className={cn(
+                  "h-4 w-4 shrink-0",
+                  active ? "text-brand-600" : "text-slate-400",
+                )}
               />
               <span className="flex-1">{item.label}</span>
               {active && <ChevronRight className="h-3.5 w-3.5 text-brand-400" />}

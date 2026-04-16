@@ -14,14 +14,13 @@ import Link from "next/link";
 import { Shell } from "@/components/layout/shell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { PageSpinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/ui/toast";
 import { tenantsApi } from "@/lib/api/tenants";
 import { configApi } from "@/lib/api/config";
+import { SchemaForm } from "@/components/config/schema-form";
 import { formatDate } from "@/lib/utils";
 import { Settings2, Save, History, Code2, RefreshCw, ArrowLeft } from "lucide-react";
 
@@ -34,6 +33,7 @@ export default function TenantConfigPage({
   const { toast } = useToast();
   const qc = useQueryClient();
   const [selectedModule, setSelectedModule] = useState("");
+  const [viewMode, setViewMode] = useState<"form" | "json">("form");
   const [configText, setConfigText] = useState("");
   const [showHistory, setShowHistory] = useState(false);
   const [showSchema, setShowSchema] = useState(false);
@@ -47,6 +47,7 @@ export default function TenantConfigPage({
     queryKey: ["modules"],
     queryFn: () => configApi.listModules(),
   });
+  const modules = modulesQuery.data?.data ?? [];
 
   const configQuery = useQuery({
     queryKey: ["config", id, selectedModule],
@@ -60,11 +61,7 @@ export default function TenantConfigPage({
     }
   }, [configQuery.data]);
 
-  const schemaQuery = useQuery({
-    queryKey: ["schema", selectedModule],
-    queryFn: () => configApi.getSchema(selectedModule),
-    enabled: !!selectedModule,
-  });
+  const activeModule = modules.find((m) => m.module === selectedModule);
 
   const historyQuery = useQuery({
     queryKey: ["config-history", id, selectedModule],
@@ -73,10 +70,8 @@ export default function TenantConfigPage({
   });
 
   const upsertMutation = useMutation({
-    mutationFn: () => {
-      const parsed = JSON.parse(configText);
-      return configApi.upsertConfig(selectedModule, parsed, id);
-    },
+    mutationFn: (config: Record<string, unknown>) =>
+      configApi.upsertConfig(selectedModule, config, id),
     onSuccess: () => {
       toast("Configuration saved", "success");
       qc.invalidateQueries({ queryKey: ["config", id, selectedModule] });
@@ -85,13 +80,14 @@ export default function TenantConfigPage({
     onError: (e: Error) => toast(e.message, "error"),
   });
 
-  const moduleOptions = [
-    { value: "", label: "Select a module…" },
-    ...(modulesQuery.data ?? []).map((m) => ({
-      value: m.module,
-      label: m.module,
-    })),
-  ];
+  const handleSaveJson = () => {
+    try {
+      const parsed = JSON.parse(configText);
+      upsertMutation.mutate(parsed);
+    } catch {
+      toast("Invalid JSON", "error");
+    }
+  };
 
   const isValidJson = (() => {
     try { JSON.parse(configText); return true; } catch { return false; }
@@ -117,17 +113,29 @@ export default function TenantConfigPage({
               <span className="font-medium">{tenantQuery.data?.name ?? id}</span>
             </p>
           </div>
-          <div className="w-48">
-            <Select
-              options={moduleOptions}
-              value={selectedModule}
-              onChange={(e) => {
-                setSelectedModule(e.target.value);
-                setShowHistory(false);
-                setShowSchema(false);
-              }}
-            />
-          </div>
+
+          {/* Module pills */}
+          {modules.length > 0 && (
+            <div className="flex gap-2 flex-wrap">
+              {modules.map((m) => (
+                <button
+                  key={m.module}
+                  onClick={() => {
+                    setSelectedModule(m.module);
+                    setShowHistory(false);
+                    setShowSchema(false);
+                  }}
+                  className={`rounded-full px-3 py-1 text-sm font-medium border transition-colors ${
+                    selectedModule === m.module
+                      ? "bg-brand-600 text-white border-brand-600"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-brand-300 hover:text-brand-600"
+                  }`}
+                >
+                  {m.module}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {!selectedModule ? (
@@ -144,10 +152,10 @@ export default function TenantConfigPage({
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>{selectedModule}</CardTitle>
+                    <CardTitle className="capitalize">{selectedModule}</CardTitle>
                     <CardDescription>
                       {configQuery.data?.isDefault
-                        ? "Showing schema defaults"
+                        ? "Using schema defaults — no custom config saved yet"
                         : `Updated ${formatDate(configQuery.data?.updatedAt)}`}
                     </CardDescription>
                   </div>
@@ -155,14 +163,25 @@ export default function TenantConfigPage({
                     {configQuery.data?.isDefault && (
                       <Badge variant="neutral">default</Badge>
                     )}
+                    {/* View mode toggle */}
+                    <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+                      <button
+                        onClick={() => setViewMode("form")}
+                        className={`px-2.5 py-1 text-xs font-medium transition-colors ${viewMode === "form" ? "bg-brand-50 text-brand-700" : "bg-white text-slate-500 hover:bg-slate-50"}`}
+                      >
+                        Form
+                      </button>
+                      <button
+                        onClick={() => setViewMode("json")}
+                        className={`px-2.5 py-1 text-xs font-medium border-l border-slate-200 transition-colors ${viewMode === "json" ? "bg-brand-50 text-brand-700" : "bg-white text-slate-500 hover:bg-slate-50"}`}
+                      >
+                        JSON
+                      </button>
+                    </div>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => {
-                        if (configQuery.data) {
-                          setConfigText(JSON.stringify(configQuery.data.config, null, 2));
-                        }
-                      }}
+                      onClick={() => qc.invalidateQueries({ queryKey: ["config", id, selectedModule] })}
                     >
                       <RefreshCw className="h-3.5 w-3.5" />
                     </Button>
@@ -170,49 +189,60 @@ export default function TenantConfigPage({
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Textarea
-                  value={configText}
-                  onChange={(e) => setConfigText(e.target.value)}
-                  rows={12}
-                  className="font-mono text-xs"
-                  error={!isValidJson && configText.length > 0 ? "Invalid JSON" : undefined}
-                />
-                <div className="flex items-center justify-between">
-                  <div className="flex gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => setShowSchema((v) => !v)}>
-                      <Code2 className="h-3.5 w-3.5" />
-                      {showSchema ? "Hide Schema" : "Schema"}
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => setShowHistory((v) => !v)}>
-                      <History className="h-3.5 w-3.5" />
-                      {showHistory ? "Hide History" : "History"}
-                    </Button>
-                  </div>
-                  <Button
-                    disabled={!isValidJson || !configText || upsertMutation.isPending}
-                    loading={upsertMutation.isPending}
-                    onClick={() => upsertMutation.mutate()}
-                  >
-                    <Save className="h-4 w-4" />
-                    Save
+                {viewMode === "form" && activeModule?.schema?.properties ? (
+                  <SchemaForm
+                    schema={activeModule.schema}
+                    defaults={activeModule.defaults}
+                    savedConfig={configQuery.data?.config ?? {}}
+                    onSave={(config) => upsertMutation.mutate(config)}
+                    saving={upsertMutation.isPending}
+                  />
+                ) : (
+                  <>
+                    <textarea
+                      value={configText}
+                      onChange={(e) => setConfigText(e.target.value)}
+                      rows={12}
+                      className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    />
+                    {!isValidJson && configText.length > 0 && (
+                      <p className="text-xs text-red-600">Invalid JSON</p>
+                    )}
+                    <div className="flex items-center justify-end">
+                      <Button
+                        disabled={!isValidJson || !configText || upsertMutation.isPending}
+                        loading={upsertMutation.isPending}
+                        onClick={handleSaveJson}
+                      >
+                        <Save className="h-4 w-4" />
+                        Save
+                      </Button>
+                    </div>
+                  </>
+                )}
+
+                <div className="flex gap-2 pt-2 border-t border-slate-100">
+                  <Button variant="ghost" size="sm" onClick={() => setShowSchema((v) => !v)}>
+                    <Code2 className="h-3.5 w-3.5" />
+                    {showSchema ? "Hide Schema" : "Schema"}
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setShowHistory((v) => !v)}>
+                    <History className="h-3.5 w-3.5" />
+                    {showHistory ? "Hide History" : "History"}
                   </Button>
                 </div>
               </CardContent>
             </Card>
 
-            {showSchema && (
+            {showSchema && activeModule && (
               <Card>
                 <CardHeader>
                   <CardTitle>JSON Schema — {selectedModule}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {schemaQuery.isLoading ? (
-                    <PageSpinner />
-                  ) : (
-                    <pre className="text-xs font-mono bg-slate-900 text-green-400 rounded-lg p-4 overflow-x-auto scrollbar-thin max-h-64">
-                      {JSON.stringify(schemaQuery.data, null, 2)}
-                    </pre>
-                  )}
+                  <pre className="text-xs font-mono bg-slate-900 text-green-400 rounded-lg p-4 overflow-x-auto scrollbar-thin max-h-64">
+                    {JSON.stringify(activeModule.schema, null, 2)}
+                  </pre>
                 </CardContent>
               </Card>
             )}

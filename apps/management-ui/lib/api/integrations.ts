@@ -6,9 +6,9 @@
  * in compliance with the LICENSE.
  */
 
-// ---------------------------------------------------------------------------
+// 
 // OpenAPI types (subset we actually need for the endpoint browser)
-// ---------------------------------------------------------------------------
+// 
 
 export interface OpenApiInfo {
   title: string;
@@ -74,9 +74,9 @@ export interface ParsedSpec {
   importedAt: string;   // ISO timestamp
 }
 
-// ---------------------------------------------------------------------------
+// 
 // Derived: flat endpoint list for browsing
-// ---------------------------------------------------------------------------
+// 
 
 export const HTTP_METHODS = ["get", "post", "put", "patch", "delete", "head", "options"] as const;
 export type HttpMethod = typeof HTTP_METHODS[number];
@@ -106,9 +106,9 @@ export function flattenSpec(spec: ParsedSpec): FlatEndpoint[] {
   return endpoints;
 }
 
-// ---------------------------------------------------------------------------
+// 
 // Saved integrations (localStorage — no backend needed for v1)
-// ---------------------------------------------------------------------------
+// 
 
 const STORAGE_KEY = "sf_integrations";
 
@@ -148,9 +148,9 @@ export const integrationsStore = {
   },
 };
 
-// ---------------------------------------------------------------------------
+// 
 // Parser: JSON or YAML → ParsedSpec
-// ---------------------------------------------------------------------------
+// 
 
 export async function parseOpenApiSpec(
   raw: string,
@@ -197,9 +197,9 @@ export async function parseOpenApiSpec(
   };
 }
 
-// ---------------------------------------------------------------------------
+// 
 // Request tester
-// ---------------------------------------------------------------------------
+// 
 
 export interface RequestConfig {
   baseUrl: string;

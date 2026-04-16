@@ -48,9 +48,9 @@ import {
   Loader2,
 } from "lucide-react";
 
-// ---------------------------------------------------------------------------
+// 
 // Method badge colours
-// ---------------------------------------------------------------------------
+// 
 
 const METHOD_COLORS: Record<string, string> = {
   get:     "bg-blue-50 text-blue-700 border-blue-200",
@@ -72,9 +72,9 @@ function MethodBadge({ method }: { method: string }) {
   );
 }
 
-// ---------------------------------------------------------------------------
+// 
 // Status badge for response
-// ---------------------------------------------------------------------------
+// 
 
 function StatusBadge({ status }: { status: number }) {
   const color =
@@ -90,9 +90,9 @@ function StatusBadge({ status }: { status: number }) {
   );
 }
 
-// ---------------------------------------------------------------------------
+// 
 // KV editor row
-// ---------------------------------------------------------------------------
+// 
 
 interface KvRow { key: string; value: string; enabled: boolean }
 
@@ -149,9 +149,9 @@ function KvEditor({
   );
 }
 
-// ---------------------------------------------------------------------------
+// 
 // Request tester panel
-// ---------------------------------------------------------------------------
+// 
 
 function RequestTester({
   endpoint,
@@ -416,9 +416,9 @@ function RequestTester({
   );
 }
 
-// ---------------------------------------------------------------------------
+// 
 // Endpoint detail panel
-// ---------------------------------------------------------------------------
+// 
 
 function EndpointPanel({
   endpoint,
@@ -477,9 +477,9 @@ function EndpointPanel({
   );
 }
 
-// ---------------------------------------------------------------------------
+// 
 // Docs view
-// ---------------------------------------------------------------------------
+// 
 
 function DocsView({ endpoint }: { endpoint: FlatEndpoint }) {
   const { operation } = endpoint;
@@ -551,9 +551,9 @@ function DocsView({ endpoint }: { endpoint: FlatEndpoint }) {
   );
 }
 
-// ---------------------------------------------------------------------------
+// 
 // Import dialog
-// ---------------------------------------------------------------------------
+// 
 
 function ImportPanel({ onImport }: { onImport: (spec: ParsedSpec) => void }) {
   const { toast } = useToast();
@@ -681,9 +681,9 @@ function ImportPanel({ onImport }: { onImport: (spec: ParsedSpec) => void }) {
   );
 }
 
-// ---------------------------------------------------------------------------
+// 
 // Spec list sidebar
-// ---------------------------------------------------------------------------
+// 
 
 function SpecList({
   specs,
@@ -723,9 +723,9 @@ function SpecList({
   );
 }
 
-// ---------------------------------------------------------------------------
+// 
 // Endpoint browser
-// ---------------------------------------------------------------------------
+// 
 
 function EndpointBrowser({
   spec,
@@ -856,9 +856,9 @@ function EndpointBrowser({
   );
 }
 
-// ---------------------------------------------------------------------------
+// 
 // Main page
-// ---------------------------------------------------------------------------
+// 
 
 export default function IntegrationsPage() {
   const [specs, setSpecs] = useState<ParsedSpec[]>([]);
