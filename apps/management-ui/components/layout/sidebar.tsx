@@ -12,6 +12,7 @@ import {
   Plug2,
   ChevronRight,
   Zap,
+  BookOpen,
 } from "lucide-react";
 
 interface NavItem {
@@ -28,6 +29,7 @@ const navItems: NavItem[] = [
   { href: "/bookings",     label: "Bookings",     icon: CalendarCheck2 },
   { href: "/config",       label: "Config",       icon: SlidersHorizontal },
   { href: "/integrations", label: "Integrations", icon: Plug2 },
+  { href: "/docs",         label: "Docs",         icon: BookOpen, exact: true },
 ];
 
 export function Sidebar() {
