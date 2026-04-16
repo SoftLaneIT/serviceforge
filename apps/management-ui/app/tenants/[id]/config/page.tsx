@@ -8,7 +8,7 @@
 
 "use client";
 
-import { use, useState, useEffect } from "react";
+import { use, useState, useEffect, Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { Shell } from "@/components/layout/shell";
@@ -24,7 +24,7 @@ import { SchemaForm } from "@/components/config/schema-form";
 import { formatDate } from "@/lib/utils";
 import { Settings2, Save, History, Code2, RefreshCw, ArrowLeft } from "lucide-react";
 
-export default function TenantConfigPage({
+function TenantConfigContent({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -94,8 +94,7 @@ export default function TenantConfigPage({
   })();
 
   return (
-    <Shell>
-      <div className="space-y-5 max-w-3xl">
+    <div className="space-y-5 max-w-3xl">
         <div className="flex items-center gap-3">
           <Link href={`/tenants/${id}`}>
             <Button variant="ghost" size="sm">
@@ -282,6 +281,19 @@ export default function TenantConfigPage({
           </div>
         )}
       </div>
+  );
+}
+
+export default function TenantConfigPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  return (
+    <Shell>
+      <Suspense fallback={<PageSpinner />}>
+        <TenantConfigContent params={params} />
+      </Suspense>
     </Shell>
   );
 }

@@ -20,12 +20,14 @@
 //
 // Environment variables:
 //
-//	PORT           HTTP listen port (default: 8084)
-//	DATABASE_URL   PostgreSQL connection string (required)
-//	KAFKA_BROKERS  Comma-separated list of broker addresses (default: localhost:9092)
-//	KAFKA_ENABLED  Set to "false" to disable Kafka publishing (default: true)
-//	LOG_LEVEL      debug | info | warn | error (default: info)
-//	LOG_FORMAT     json | text (default: json)
+//	PORT               HTTP listen port (default: 8084)
+//	DATABASE_URL       PostgreSQL connection string (required)
+//	CONFIG_SERVICE_URL Base URL of the config-service (default: http://localhost:8085)
+//	CONFIG_CACHE_TTL   Config cache TTL in seconds (default: 60)
+//	KAFKA_BROKERS      Comma-separated list of broker addresses (default: localhost:9092)
+//	KAFKA_ENABLED      Set to "false" to disable Kafka publishing (default: true)
+//	LOG_LEVEL          debug | info | warn | error (default: info)
+//	LOG_FORMAT         json | text (default: json)
 package main
 
 import (
@@ -35,6 +37,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -45,6 +48,7 @@ import (
 	"github.com/SoftLaneIT/serviceforge/packages/go-common/logger"
 	commidware "github.com/SoftLaneIT/serviceforge/packages/go-common/middleware"
 	"github.com/SoftLaneIT/serviceforge/packages/go-common/tenant"
+	"github.com/SoftLaneIT/serviceforge/services/booking-service/internal/configclient"
 	"github.com/SoftLaneIT/serviceforge/services/booking-service/internal/events"
 	"github.com/SoftLaneIT/serviceforge/services/booking-service/internal/handler"
 	"github.com/SoftLaneIT/serviceforge/services/booking-service/internal/repository"
@@ -53,13 +57,13 @@ import (
 func main() {
 	log := logger.NewFromEnv("booking-service")
 
-	//  database
+	// ── database ─────────────────────────────────────────────────────────────
 	dsn := config.GetEnv("DATABASE_URL",
 		"postgres://serviceforge:serviceforge@localhost:5432/serviceforge?sslmode=disable")
 	pool := mustConnectPool(log, dsn)
 	defer pool.Close()
 
-	//  kafka publisher ─
+	// ── kafka publisher ───────────────────────────────────────────────────────
 	var pub events.Publisher
 	if config.GetEnv("KAFKA_ENABLED", "true") != "false" {
 		brokersRaw := config.GetEnv("KAFKA_BROKERS", "localhost:9092")
@@ -72,11 +76,20 @@ func main() {
 	}
 	defer pub.Close()
 
-	//  repository + handler ─
-	repo := repository.NewPostgres(pool)
-	h := handler.New(repo, pub, log)
+	// ── config client ─────────────────────────────────────────────────────────
+	configURL := config.GetEnv("CONFIG_SERVICE_URL", "http://localhost:8085")
+	cacheTTLSecs := parseIntDefault(config.GetEnv("CONFIG_CACHE_TTL", "60"), 60)
+	cfgClient := configclient.New(configURL, time.Duration(cacheTTLSecs)*time.Second)
+	log.Info("config client initialised",
+		slog.String("config_service_url", configURL),
+		slog.Int("cache_ttl_secs", cacheTTLSecs),
+	)
 
-	//  HTTP server
+	// ── repository + handler ─────────────────────────────────────────────────
+	repo := repository.NewPostgres(pool)
+	h := handler.New(repo, pub, cfgClient, log)
+
+	// ── HTTP server ──────────────────────────────────────────────────────────
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 
@@ -163,4 +176,15 @@ func mustConnectPool(log *slog.Logger, dsn string) *pgxpool.Pool {
 	log.Error("could not connect to database after retries", slog.Any("error", err))
 	os.Exit(1)
 	return nil
+}
+
+func parseIntDefault(s string, def int) int {
+	if s == "" {
+		return def
+	}
+	v, err := strconv.Atoi(s)
+	if err != nil || v <= 0 {
+		return def
+	}
+	return v
 }

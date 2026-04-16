@@ -214,6 +214,8 @@ services:
         condition: service_completed_successfully
       kafka:
         condition: service_healthy
+      config-service:
+        condition: service_healthy
     ports:
       - "8084:8084"
     environment:
@@ -221,6 +223,8 @@ services:
       DATABASE_URL: postgres://serviceforge:serviceforge@postgres:5432/serviceforge?sslmode=disable
       KAFKA_BROKERS: kafka:9092
       KAFKA_ENABLED: "true"
+      CONFIG_SERVICE_URL: http://config-service:8085
+      CONFIG_CACHE_TTL: "60"
       LOG_FORMAT: json
       LOG_LEVEL: info
     healthcheck:

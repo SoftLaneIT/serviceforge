@@ -73,12 +73,17 @@ type Booking struct {
 }
 
 // CreateParams is the validated input for creating a new booking.
+//
+// InitialStatus lets the caller (handler) override the default "pending" status
+// to "confirmed" when the tenant's booking module has autoConfirm = true.
+// If empty, the repository will use the DB column default ("pending").
 type CreateParams struct {
-	CustomerRef string
-	ServiceRef  string
-	SlotStart   time.Time
-	SlotEnd     time.Time
-	Metadata    map[string]any
+	CustomerRef   string
+	ServiceRef    string
+	SlotStart     time.Time
+	SlotEnd       time.Time
+	Metadata      map[string]any
+	InitialStatus Status // optional; empty = use DB default ("pending")
 }
 
 // Validate returns a combined error if any field is invalid.
@@ -100,6 +105,9 @@ func (p CreateParams) Validate() error {
 	if !p.SlotStart.IsZero() && !p.SlotEnd.IsZero() && !p.SlotEnd.After(p.SlotStart) {
 		errs = append(errs, "slotEnd must be after slotStart")
 	}
+	if p.InitialStatus != "" && !p.InitialStatus.Valid() {
+		errs = append(errs, fmt.Sprintf("invalid initialStatus %q", p.InitialStatus))
+	}
 
 	if len(errs) > 0 {
 		return fmt.Errorf("validation: %s", strings.Join(errs, "; "))
@@ -112,4 +120,8 @@ var (
 	ErrNotFound       = errors.New("booking not found")
 	ErrSlotConflict   = errors.New("time slot already booked")
 	ErrTerminalStatus = errors.New("booking is in a terminal state")
+	// ErrPolicyViolation is returned when a create request is rejected by a
+	// tenant-specific configuration rule (e.g. advance booking limit exceeded,
+	// outside business hours, daily capacity reached).
+	ErrPolicyViolation = errors.New("booking policy violation")
 )

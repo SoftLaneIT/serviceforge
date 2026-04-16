@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -67,10 +68,18 @@ func setTenantContext(ctx context.Context, tx pgx.Tx, tenantID string) error {
 }
 
 // Create inserts a new booking inside a transaction with RLS armed.
+// If p.InitialStatus is set it overrides the DB default ("pending"); this is
+// used by the handler to honour the autoConfirm booking-module policy.
 func (r *PostgresRepo) Create(ctx context.Context, tenantID string, p domain.CreateParams) (*domain.Booking, error) {
 	settingsJSON, err := marshalMetadata(p.Metadata)
 	if err != nil {
 		return nil, err
+	}
+
+	// Determine initial status.
+	initialStatus := string(domain.StatusPending)
+	if p.InitialStatus != "" {
+		initialStatus = string(p.InitialStatus)
 	}
 
 	tx, err := r.pool.Begin(ctx)
@@ -85,9 +94,9 @@ func (r *PostgresRepo) Create(ctx context.Context, tenantID string, p domain.Cre
 
 	const q = `
 		INSERT INTO bookings
-			(tenant_id, customer_ref, service_ref, slot_start, slot_end, metadata)
+			(tenant_id, customer_ref, service_ref, slot_start, slot_end, status, metadata)
 		VALUES
-			($1::uuid, $2, $3, $4, $5, $6)
+			($1::uuid, $2, $3, $4, $5, $6, $7)
 		RETURNING ` + selectCols
 
 	row := tx.QueryRow(ctx, q,
@@ -96,6 +105,7 @@ func (r *PostgresRepo) Create(ctx context.Context, tenantID string, p domain.Cre
 		p.ServiceRef,
 		p.SlotStart,
 		p.SlotEnd,
+		initialStatus,
 		settingsJSON,
 	)
 
@@ -112,6 +122,80 @@ func (r *PostgresRepo) Create(ctx context.Context, tenantID string, p domain.Cre
 		return nil, fmt.Errorf("commit create booking: %w", err)
 	}
 	return b, nil
+}
+
+// CountForDate returns the number of active bookings whose slot_start falls on
+// the same UTC calendar day as date.  Used for the maxBookingsPerDay policy.
+func (r *PostgresRepo) CountForDate(ctx context.Context, tenantID string, date time.Time) (int, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	if err := setTenantContext(ctx, tx, tenantID); err != nil {
+		return 0, fmt.Errorf("set tenant context: %w", err)
+	}
+
+	const q = `
+		SELECT COUNT(*)
+		FROM   bookings
+		WHERE  DATE(slot_start AT TIME ZONE 'UTC') = DATE($1 AT TIME ZONE 'UTC')
+		AND    status NOT IN ('cancelled', 'no_show')`
+
+	var count int
+	if err := tx.QueryRow(ctx, q, date).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count bookings for date: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, fmt.Errorf("commit count for date: %w", err)
+	}
+	return count, nil
+}
+
+// HasBufferConflict returns true when any active booking for the same
+// tenantID + serviceRef overlaps with the expanded window:
+//
+//	[slotStart − bufferMinutes, slotEnd + bufferMinutes]
+//
+// A bufferMinutes value of 0 makes this a plain overlap check (useful to
+// detect double-booking before the unique index fires).
+func (r *PostgresRepo) HasBufferConflict(
+	ctx context.Context,
+	tenantID, serviceRef string,
+	slotStart, slotEnd time.Time,
+	bufferMinutes int,
+) (bool, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return false, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	if err := setTenantContext(ctx, tx, tenantID); err != nil {
+		return false, fmt.Errorf("set tenant context: %w", err)
+	}
+
+	// An existing booking B conflicts when:
+	//   B.slot_end   > slotStart − buffer  (B finishes too close to the new start)
+	//   B.slot_start < slotEnd   + buffer  (B starts too close to the new end)
+	const q = `
+		SELECT COUNT(*) FROM bookings
+		WHERE  service_ref = $1
+		AND    status NOT IN ('cancelled', 'no_show')
+		AND    slot_end   > $2::timestamptz - ($3 * interval '1 minute')
+		AND    slot_start < $4::timestamptz + ($3 * interval '1 minute')`
+
+	var count int
+	if err := tx.QueryRow(ctx, q, serviceRef, slotStart, bufferMinutes, slotEnd).Scan(&count); err != nil {
+		return false, fmt.Errorf("buffer conflict check: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return false, fmt.Errorf("commit buffer check: %w", err)
+	}
+	return count > 0, nil
 }
 
 // GetByID returns the booking if it exists for tenantID (RLS enforces the

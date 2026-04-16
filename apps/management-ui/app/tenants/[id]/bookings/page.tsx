@@ -8,7 +8,7 @@
 
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -63,11 +63,7 @@ const statusFilterOptions = [
   { value: "no_show",   label: "No show" },
 ];
 
-export default function TenantBookingsPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+function TenantBookingsContent({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -138,127 +134,125 @@ export default function TenantBookingsPage({
   const totalPages = Math.ceil(total / limit);
 
   return (
-    <Shell>
-      <div className="space-y-5 max-w-6xl">
-        <div className="flex items-center gap-3">
-          <Link href={`/tenants/${id}`}>
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="h-4 w-4" />
-              {tenantQuery.data?.name ?? "Tenant"}
-            </Button>
-          </Link>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">Bookings</h2>
-            <p className="text-sm text-slate-500 mt-0.5">
-              {total} booking{total !== 1 ? "s" : ""} for{" "}
-              <span className="font-medium">{tenantQuery.data?.name ?? id}</span>
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Select
-              options={statusFilterOptions}
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
-              className="w-40"
-            />
-            <Button onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4" />
-              New Booking
-            </Button>
-          </div>
-        </div>
-
-        <Card>
-          <CardContent className="p-0">
-            {bookingsQuery.isLoading ? (
-              <PageSpinner />
-            ) : bookings.length === 0 ? (
-              <EmptyState
-                icon={CalendarDays}
-                title="No bookings"
-                description="No bookings found."
-                action={
-                  <Button onClick={() => setCreateOpen(true)}>
-                    <Plus className="h-4 w-4" />
-                    New Booking
-                  </Button>
-                }
-              />
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Customer Ref</TableHead>
-                    <TableHead>Service Ref</TableHead>
-                    <TableHead>Slot Start</TableHead>
-                    <TableHead>Slot End</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead className="w-20" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {bookings.map((b) => {
-                    const nextStatuses = NEXT_STATUSES[b.status];
-                    return (
-                      <TableRow key={b.id}>
-                        <TableCell className="font-medium">{b.customerRef}</TableCell>
-                        <TableCell>{b.serviceRef}</TableCell>
-                        <TableCell className="text-xs">{formatDate(b.slotStart)}</TableCell>
-                        <TableCell className="text-xs">{formatDate(b.slotEnd)}</TableCell>
-                        <TableCell><BookingStatusBadge status={b.status} /></TableCell>
-                        <TableCell className="text-xs text-slate-500">
-                          {formatDate(b.createdAt)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            {nextStatuses.length > 0 && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setUpdateTarget(b)}
-                              >
-                                <RefreshCw className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                            {(b.status === "pending" || b.status === "confirmed") && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-red-500 hover:bg-red-50"
-                                onClick={() => setCancelTarget(b)}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100">
-              <span className="text-xs text-slate-500">Page {page + 1} of {totalPages}</span>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
-                  Previous
-                </Button>
-                <Button variant="outline" size="sm" disabled={page + 1 >= totalPages} onClick={() => setPage((p) => p + 1)}>
-                  Next
-                </Button>
-              </div>
-            </div>
-          )}
-        </Card>
+    <div className="space-y-5 max-w-6xl">
+      <div className="flex items-center gap-3">
+        <Link href={`/tenants/${id}`}>
+          <Button variant="ghost" size="sm">
+            <ArrowLeft className="h-4 w-4" />
+            {tenantQuery.data?.name ?? "Tenant"}
+          </Button>
+        </Link>
       </div>
+
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">Bookings</h2>
+          <p className="text-sm text-slate-500 mt-0.5">
+            {total} booking{total !== 1 ? "s" : ""} for{" "}
+            <span className="font-medium">{tenantQuery.data?.name ?? id}</span>
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Select
+            options={statusFilterOptions}
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
+            className="w-40"
+          />
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4" />
+            New Booking
+          </Button>
+        </div>
+      </div>
+
+      <Card>
+        <CardContent className="p-0">
+          {bookingsQuery.isLoading ? (
+            <PageSpinner />
+          ) : bookings.length === 0 ? (
+            <EmptyState
+              icon={CalendarDays}
+              title="No bookings"
+              description="No bookings found."
+              action={
+                <Button onClick={() => setCreateOpen(true)}>
+                  <Plus className="h-4 w-4" />
+                  New Booking
+                </Button>
+              }
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Customer Ref</TableHead>
+                  <TableHead>Service Ref</TableHead>
+                  <TableHead>Slot Start</TableHead>
+                  <TableHead>Slot End</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead className="w-20" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {bookings.map((b) => {
+                  const nextStatuses = NEXT_STATUSES[b.status];
+                  return (
+                    <TableRow key={b.id}>
+                      <TableCell className="font-medium">{b.customerRef}</TableCell>
+                      <TableCell>{b.serviceRef}</TableCell>
+                      <TableCell className="text-xs">{formatDate(b.slotStart)}</TableCell>
+                      <TableCell className="text-xs">{formatDate(b.slotEnd)}</TableCell>
+                      <TableCell><BookingStatusBadge status={b.status} /></TableCell>
+                      <TableCell className="text-xs text-slate-500">
+                        {formatDate(b.createdAt)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          {nextStatuses.length > 0 && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setUpdateTarget(b)}
+                            >
+                              <RefreshCw className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {(b.status === "pending" || b.status === "confirmed") && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-500 hover:bg-red-50"
+                              onClick={() => setCancelTarget(b)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100">
+            <span className="text-xs text-slate-500">Page {page + 1} of {totalPages}</span>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
+                Previous
+              </Button>
+              <Button variant="outline" size="sm" disabled={page + 1 >= totalPages} onClick={() => setPage((p) => p + 1)}>
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
+      </Card>
 
       <Dialog
         open={createOpen}
@@ -266,7 +260,16 @@ export default function TenantBookingsPage({
         title="New Booking"
         description="Create a booking for this tenant."
       >
-        <form onSubmit={handleSubmit((v) => createMutation.mutate(v))} className="space-y-4">
+        <form
+          onSubmit={handleSubmit((v) =>
+            createMutation.mutate({
+              ...v,
+              slotStart: new Date(v.slotStart).toISOString(),
+              slotEnd:   new Date(v.slotEnd).toISOString(),
+            })
+          )}
+          className="space-y-4"
+        >
           <Input label="Customer Reference" placeholder="cust_12345" error={errors.customerRef?.message} {...register("customerRef")} />
           <Input label="Service Reference" placeholder="svc_abc" error={errors.serviceRef?.message} {...register("serviceRef")} />
           <Input label="Slot Start" type="datetime-local" error={errors.slotStart?.message} {...register("slotStart")} />
@@ -306,6 +309,20 @@ export default function TenantBookingsPage({
         destructive
         loading={cancelMutation.isPending}
       />
+    </div>
+  );
+}
+
+export default function TenantBookingsPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  return (
+    <Shell>
+      <Suspense fallback={<PageSpinner />}>
+        <TenantBookingsContent params={params} />
+      </Suspense>
     </Shell>
   );
 }

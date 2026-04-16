@@ -17,8 +17,8 @@
  */
 
 // Package handler contains the HTTP layer for the booking-service.  It depends
-// only on the repository interface, the events.Publisher interface, and domain
-// types — never on pgx or kafka-go directly.
+// only on the repository interface, the events.Publisher interface, the config
+// client, and domain types — never on pgx or kafka-go directly.
 package handler
 
 import (
@@ -27,13 +27,16 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/SoftLaneIT/serviceforge/packages/go-common/logger"
 	"github.com/SoftLaneIT/serviceforge/packages/go-common/tenant"
+	"github.com/SoftLaneIT/serviceforge/services/booking-service/internal/configclient"
 	"github.com/SoftLaneIT/serviceforge/services/booking-service/internal/domain"
 	"github.com/SoftLaneIT/serviceforge/services/booking-service/internal/events"
 	"github.com/SoftLaneIT/serviceforge/services/booking-service/internal/repository"
@@ -41,14 +44,15 @@ import (
 
 // Handler holds shared dependencies.
 type Handler struct {
-	repo repository.Repository
-	pub  events.Publisher
-	log  *slog.Logger
+	repo   repository.Repository
+	pub    events.Publisher
+	cfg    *configclient.Client
+	log    *slog.Logger
 }
 
-// New returns a Handler wired to the given repository, publisher, and logger.
-func New(repo repository.Repository, pub events.Publisher, log *slog.Logger) *Handler {
-	return &Handler{repo: repo, pub: pub, log: log}
+// New returns a Handler wired to the given repository, publisher, config client, and logger.
+func New(repo repository.Repository, pub events.Publisher, cfg *configclient.Client, log *slog.Logger) *Handler {
+	return &Handler{repo: repo, pub: pub, cfg: cfg, log: log}
 }
 
 // RegisterRoutes registers all booking-service routes onto mux.
@@ -61,7 +65,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /v1/bookings/{id}", h.CancelBooking)
 }
 
-//  Health
+// ─────────────────────────────────────────────────────────────────────────────
+// Health
+// ─────────────────────────────────────────────────────────────────────────────
 
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{"service": "booking-service", "status": "ok", "db": "ok"}
@@ -75,7 +81,9 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, resp)
 }
 
-//  CreateBooking ─
+// ─────────────────────────────────────────────────────────────────────────────
+// CreateBooking — policy enforcement pipeline
+// ─────────────────────────────────────────────────────────────────────────────
 
 type createRequest struct {
 	CustomerRef string         `json:"customerRef"`
@@ -111,6 +119,87 @@ func (h *Handler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// ── Fetch tenant configuration ──────────────────────────────────────────
+	// Both fetches degrade gracefully to permissive defaults if config-service
+	// is unavailable, so a config outage never breaks the booking flow.
+	bookCfg := h.cfg.GetBookingConfig(r.Context(), tenantID)
+	bizCfg := h.cfg.GetBusinessHoursConfig(r.Context(), tenantID)
+
+	// ── Policy: advance booking limit ───────────────────────────────────────
+	maxFuture := time.Now().UTC().AddDate(0, 0, bookCfg.AdvanceBookingDays)
+	if req.SlotStart.After(maxFuture) {
+		respondError(w, http.StatusUnprocessableEntity, fmt.Sprintf(
+			"slot is too far in the future: bookings may only be created up to %d day(s) ahead",
+			bookCfg.AdvanceBookingDays,
+		))
+		return
+	}
+
+	// ── Policy: slot must not be in the past ────────────────────────────────
+	if req.SlotStart.Before(time.Now().UTC()) {
+		respondError(w, http.StatusUnprocessableEntity, "slot start must be in the future")
+		return
+	}
+
+	// ── Policy: slot duration must be a positive multiple of slotDurationMinutes
+	slotMinutes := int(req.SlotEnd.Sub(req.SlotStart).Minutes())
+	if bookCfg.SlotDurationMinutes > 0 && slotMinutes%bookCfg.SlotDurationMinutes != 0 {
+		respondError(w, http.StatusUnprocessableEntity, fmt.Sprintf(
+			"slot duration (%d min) must be a multiple of the configured slot duration (%d min)",
+			slotMinutes, bookCfg.SlotDurationMinutes,
+		))
+		return
+	}
+
+	// ── Policy: business hours ──────────────────────────────────────────────
+	if !bizCfg.AllowBookingsOutsideHours {
+		if err := checkBusinessHours(bizCfg, req.SlotStart, req.SlotEnd); err != nil {
+			respondError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+	}
+
+	// ── Policy: max bookings per day ────────────────────────────────────────
+	dayCount, err := h.repo.CountForDate(r.Context(), tenantID, req.SlotStart)
+	if err != nil {
+		log.Error("count bookings for date", slog.Any("error", err))
+		respondError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+	if dayCount >= bookCfg.MaxBookingsPerDay {
+		respondError(w, http.StatusConflict, fmt.Sprintf(
+			"daily booking limit reached (%d/%d) — no further bookings accepted on this date",
+			dayCount, bookCfg.MaxBookingsPerDay,
+		))
+		return
+	}
+
+	// ── Policy: buffer between consecutive bookings ─────────────────────────
+	if bookCfg.BufferMinutes > 0 {
+		conflict, err := h.repo.HasBufferConflict(
+			r.Context(), tenantID, req.ServiceRef,
+			req.SlotStart, req.SlotEnd, bookCfg.BufferMinutes,
+		)
+		if err != nil {
+			log.Error("buffer conflict check", slog.Any("error", err))
+			respondError(w, http.StatusInternalServerError, "internal error")
+			return
+		}
+		if conflict {
+			respondError(w, http.StatusConflict, fmt.Sprintf(
+				"a %d-minute buffer is required between consecutive bookings for this service",
+				bookCfg.BufferMinutes,
+			))
+			return
+		}
+	}
+
+	// ── Policy: autoConfirm ─────────────────────────────────────────────────
+	if bookCfg.AutoConfirm {
+		params.InitialStatus = domain.StatusConfirmed
+	}
+
+	// ── Persist ─────────────────────────────────────────────────────────────
 	booking, err := h.repo.Create(r.Context(), tenantID, params)
 	if err != nil {
 		if errors.Is(err, domain.ErrSlotConflict) {
@@ -122,17 +211,20 @@ func (h *Handler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Publish booking.created event asynchronously so it never blocks the response.
 	go h.publishCreated(booking)
 
 	log.Info("booking created",
 		slog.String("booking_id", booking.ID),
 		slog.String("tenant_id", tenantID),
+		slog.String("status", string(booking.Status)),
+		slog.Bool("auto_confirmed", bookCfg.AutoConfirm),
 	)
 	respondJSON(w, http.StatusCreated, booking)
 }
 
-//  ListBookings
+// ─────────────────────────────────────────────────────────────────────────────
+// ListBookings
+// ─────────────────────────────────────────────────────────────────────────────
 
 type listResponse struct {
 	Data   []domain.Booking `json:"data"`
@@ -179,7 +271,9 @@ func (h *Handler) ListBookings(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-//  GetBooking
+// ─────────────────────────────────────────────────────────────────────────────
+// GetBooking
+// ─────────────────────────────────────────────────────────────────────────────
 
 func (h *Handler) GetBooking(w http.ResponseWriter, r *http.Request) {
 	log := logger.FromContext(r.Context())
@@ -204,7 +298,9 @@ func (h *Handler) GetBooking(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, booking)
 }
 
-//  UpdateStatus
+// ─────────────────────────────────────────────────────────────────────────────
+// UpdateStatus
+// ─────────────────────────────────────────────────────────────────────────────
 
 type updateStatusRequest struct {
 	Status domain.Status `json:"status"`
@@ -254,7 +350,9 @@ func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, booking)
 }
 
-//  CancelBooking ─
+// ─────────────────────────────────────────────────────────────────────────────
+// CancelBooking
+// ─────────────────────────────────────────────────────────────────────────────
 
 func (h *Handler) CancelBooking(w http.ResponseWriter, r *http.Request) {
 	log := logger.FromContext(r.Context())
@@ -285,10 +383,97 @@ func (h *Handler) CancelBooking(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, booking)
 }
 
-//  event helpers ─
+// ─────────────────────────────────────────────────────────────────────────────
+// Business-hours enforcement helper
+// ─────────────────────────────────────────────────────────────────────────────
 
-// newEventID returns a random 32-hex-char string used as a unique event ID.
-// Using crypto/rand avoids the google/uuid dependency.
+// checkBusinessHours returns a descriptive error when slotStart or slotEnd
+// falls outside the tenant's configured operating hours for that day.
+func checkBusinessHours(cfg configclient.BusinessHoursCfg, slotStart, slotEnd time.Time) error {
+	loc, err := time.LoadLocation(cfg.Timezone)
+	if err != nil {
+		loc = time.UTC // unknown timezone → allow
+	}
+
+	start := slotStart.In(loc)
+	end := slotEnd.In(loc)
+
+	dayName := strings.ToLower(start.Weekday().String())
+	schedule := dayScheduleFor(cfg, dayName)
+
+	if !schedule.Open {
+		return fmt.Errorf("business is closed on %s", dayName)
+	}
+
+	openH, openM := parseHHMM(schedule.OpenTime)
+	closeH, closeM := parseHHMM(schedule.CloseTime)
+
+	y, mo, d := start.Date()
+	openTime := time.Date(y, mo, d, openH, openM, 0, 0, loc)
+	closeTime := time.Date(y, mo, d, closeH, closeM, 0, 0, loc)
+
+	if start.Before(openTime) {
+		return fmt.Errorf("slot starts before opening time (%s)", schedule.OpenTime)
+	}
+	if end.After(closeTime) {
+		return fmt.Errorf("slot ends after closing time (%s)", schedule.CloseTime)
+	}
+
+	// Break-time check.
+	if cfg.BreakDurationMinutes > 0 && cfg.BreakStartTime != "" {
+		breakH, breakM := parseHHMM(cfg.BreakStartTime)
+		breakStart := time.Date(y, mo, d, breakH, breakM, 0, 0, loc)
+		breakEnd := breakStart.Add(time.Duration(cfg.BreakDurationMinutes) * time.Minute)
+
+		// The slot overlaps with the break if it starts before the break ends
+		// AND ends after the break starts.
+		if start.Before(breakEnd) && end.After(breakStart) {
+			return fmt.Errorf("slot overlaps with the business break (%s – %s min)",
+				cfg.BreakStartTime, strconv.Itoa(cfg.BreakDurationMinutes))
+		}
+	}
+
+	return nil
+}
+
+// dayScheduleFor returns the DaySchedule for the given lowercase weekday name.
+func dayScheduleFor(cfg configclient.BusinessHoursCfg, day string) configclient.DaySchedule {
+	switch day {
+	case "monday":
+		return cfg.Monday
+	case "tuesday":
+		return cfg.Tuesday
+	case "wednesday":
+		return cfg.Wednesday
+	case "thursday":
+		return cfg.Thursday
+	case "friday":
+		return cfg.Friday
+	case "saturday":
+		return cfg.Saturday
+	case "sunday":
+		return cfg.Sunday
+	default:
+		return configclient.DaySchedule{Open: true, OpenTime: "00:00", CloseTime: "23:59"}
+	}
+}
+
+// parseHHMM parses an "HH:MM" string into hours and minutes.
+// Returns 0, 0 on any parse error (permissive).
+func parseHHMM(s string) (int, int) {
+	parts := strings.SplitN(s, ":", 2)
+	if len(parts) != 2 {
+		return 0, 0
+	}
+	h, _ := strconv.Atoi(parts[0])
+	m, _ := strconv.Atoi(parts[1])
+	return h, m
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Event helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
 func newEventID() string {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
@@ -364,7 +549,9 @@ func timeoutCtx(secs int) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), time.Duration(secs)*time.Second)
 }
 
-//  HTTP helpers
+// ─────────────────────────────────────────────────────────────────────────────
+// HTTP helpers
+// ─────────────────────────────────────────────────────────────────────────────
 
 func respondJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")

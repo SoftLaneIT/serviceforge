@@ -21,6 +21,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/SoftLaneIT/serviceforge/services/booking-service/internal/domain"
 )
@@ -60,6 +61,16 @@ type Repository interface {
 	// Cancel soft-deletes the booking (status=cancelled, cancelled_at=NOW()).
 	// Returns ErrNotFound or ErrTerminalStatus.
 	Cancel(ctx context.Context, tenantID, id string) (*domain.Booking, error)
+
+	// CountForDate returns the number of active (non-cancelled, non-no_show)
+	// bookings for tenantID whose slot_start falls on date (UTC calendar day).
+	// Used to enforce the maxBookingsPerDay policy.
+	CountForDate(ctx context.Context, tenantID string, date time.Time) (int, error)
+
+	// HasBufferConflict returns true when any active booking for tenantID+serviceRef
+	// overlaps with the expanded window [slotStart − bufferMinutes, slotEnd + bufferMinutes].
+	// A bufferMinutes of 0 makes this equivalent to a simple overlap check.
+	HasBufferConflict(ctx context.Context, tenantID, serviceRef string, slotStart, slotEnd time.Time, bufferMinutes int) (bool, error)
 
 	// Ping verifies the underlying connection is alive.
 	Ping(ctx context.Context) error
