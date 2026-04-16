@@ -20,7 +20,11 @@ async function configRequest<T>(
   if (!res.ok) {
     let errBody: unknown;
     try { errBody = await res.json(); } catch { /* ignore */ }
-    throw new ApiError(res.status, `${res.status} ${res.statusText}`, errBody);
+    const msg =
+      errBody && typeof errBody === "object" && "error" in errBody
+        ? String((errBody as { error: string }).error)
+        : `${res.status} ${res.statusText}`;
+    throw new ApiError(res.status, msg, errBody);
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;

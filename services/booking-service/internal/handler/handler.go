@@ -141,11 +141,11 @@ func (h *Handler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ── Policy: slot duration must be a positive multiple of slotDurationMinutes
+	// ── Policy: slot must meet the minimum configured duration ─────────────────
 	slotMinutes := int(req.SlotEnd.Sub(req.SlotStart).Minutes())
-	if bookCfg.SlotDurationMinutes > 0 && slotMinutes%bookCfg.SlotDurationMinutes != 0 {
+	if bookCfg.SlotDurationMinutes > 0 && slotMinutes < bookCfg.SlotDurationMinutes {
 		respondError(w, http.StatusUnprocessableEntity, fmt.Sprintf(
-			"slot duration (%d min) must be a multiple of the configured slot duration (%d min)",
+			"slot duration (%d min) is shorter than the minimum slot duration configured for this tenant (%d min)",
 			slotMinutes, bookCfg.SlotDurationMinutes,
 		))
 		return
