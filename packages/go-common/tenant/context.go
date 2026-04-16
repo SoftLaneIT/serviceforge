@@ -29,6 +29,14 @@ const (
 	tenantHeader      = "X-Tenant-ID"
 	tenantContextKey  = ctxKey("tenant_id")
 	defaultTenantName = "default"
+
+	// DefaultTenant is the sentinel value returned by FromContext when no
+	// X-Tenant-ID header was present on the request.  Handlers that require a
+	// real tenant ID should compare against this value to detect unauthenticated
+	// calls, e.g.:
+	//
+	//	if tid := tenant.FromContext(ctx); tid == tenant.DefaultTenant { ... }
+	DefaultTenant = defaultTenantName
 )
 
 func Middleware(next http.Handler) http.Handler {
@@ -47,4 +55,11 @@ func FromContext(ctx context.Context) string {
 		return value
 	}
 	return defaultTenantName
+}
+
+// NewContext returns a copy of ctx with tenantID stored under the tenant key.
+// Useful in tests and internal callers that construct contexts directly instead
+// of going through Middleware.
+func NewContext(ctx context.Context, tenantID string) context.Context {
+	return context.WithValue(ctx, tenantContextKey, tenantID)
 }

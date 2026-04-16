@@ -14,13 +14,13 @@
 // specific language governing permissions and limitations
 // under the LICENSE.
 
-go 1.23.0
+go 1.25.0
 
 use (
 	./packages/go-common
 	./services/api-gateway
 	./services/auth-service
-	./services/tenant-service
-	./services/config-service
 	./services/booking-service
+	./services/config-service
+	./services/tenant-service
 )
