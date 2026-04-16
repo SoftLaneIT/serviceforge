@@ -117,7 +117,7 @@ func (h *Handler) CreateTenant(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusCreated, tenant)
 }
 
-//  ListTenants ──
+//  ListTenants
 
 type listResponse struct {
 	Data   []domain.Tenant `json:"data"`

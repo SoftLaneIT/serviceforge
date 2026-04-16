@@ -84,7 +84,7 @@ type Tenant struct {
 	DeletedAt *time.Time `json:"deletedAt,omitempty"`
 }
 
-//  command inputs ──
+//  command inputs
 
 // CreateParams is the validated input for creating a new tenant.
 // Call Validate() before passing to the repository.

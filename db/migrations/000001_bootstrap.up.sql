@@ -26,7 +26,7 @@
 --   • The sf_app role (services connect as this role, never as the superuser)
 -- 
 
--- ── Extensions ────
+--  Extensions 
 -- uuid_generate_v4() is used as the default for all primary-key columns.
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
@@ -38,7 +38,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- tenant slugs and customer references.
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
--- ── Shared trigger function ─
+--  Shared trigger function ─
 -- Automatically maintains the updated_at column on any table that attaches
 -- this trigger.  Using a single shared function rather than per-table copies
 -- keeps the schema DRY and avoids drift.
@@ -52,7 +52,7 @@ BEGIN
 END;
 $$;
 
--- ── Tenant-context helper ───
+--  Tenant-context helper ─
 -- Services call this at the beginning of every transaction (or connection pool
 -- checkout) to set the GUC that RLS policies read.  Using a transaction-scoped
 -- setting (is_local = TRUE) means the value is automatically cleared when the
@@ -70,7 +70,7 @@ BEGIN
 END;
 $$;
 
--- ── Application role ───
+--  Application role ─
 -- All five services connect as sf_app — never as the database owner.  This
 -- limits blast radius: a compromised service cannot DROP TABLE or ALTER ROLE.
 -- The password is overridden in production via a secrets manager; this default

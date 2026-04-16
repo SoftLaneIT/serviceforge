@@ -23,7 +23,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";     -- Trigram index for full-text search
 
--- ── Tenants table (core of multi-tenancy) ──
+--  Tenants table (core of multi-tenancy) 
 CREATE TABLE IF NOT EXISTS tenants (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name            VARCHAR(255) NOT NULL,
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS tenants (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- ── API Keys ──
+--  API Keys 
 CREATE TABLE IF NOT EXISTS api_keys (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     tenant_id       UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
 CREATE INDEX idx_api_keys_tenant ON api_keys(tenant_id);
 CREATE UNIQUE INDEX idx_api_keys_prefix ON api_keys(key_prefix);
 
--- ── Module Subscriptions ──
+--  Module Subscriptions 
 CREATE TABLE IF NOT EXISTS module_subscriptions (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     tenant_id       UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS module_subscriptions (
 );
 CREATE INDEX idx_module_subs_tenant ON module_subscriptions(tenant_id);
 
--- ── Configuration History ──
+--  Configuration History 
 CREATE TABLE IF NOT EXISTS config_history (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     tenant_id       UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -76,7 +76,7 @@ CREATE TABLE IF NOT EXISTS config_history (
 );
 CREATE INDEX idx_config_history_tenant_module ON config_history(tenant_id, module_name, changed_at DESC);
 
--- ── Webhook Endpoints ──
+--  Webhook Endpoints 
 CREATE TABLE IF NOT EXISTS webhooks (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     tenant_id       UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS webhooks (
 );
 CREATE INDEX idx_webhooks_tenant ON webhooks(tenant_id);
 
--- ── Enable Row-Level Security on all tenant-scoped tables ──
+--  Enable Row-Level Security on all tenant-scoped tables 
 ALTER TABLE api_keys ENABLE ROW LEVEL SECURITY;
 ALTER TABLE module_subscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE config_history ENABLE ROW LEVEL SECURITY;
@@ -108,7 +108,7 @@ CREATE POLICY tenant_isolation_config_history ON config_history
 CREATE POLICY tenant_isolation_webhooks ON webhooks
     USING (tenant_id = current_setting('app.current_tenant_id')::UUID);
 
--- ── Application role (services connect as this, not as superuser) ──
+--  Application role (services connect as this, not as superuser) 
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'sf_app') THEN
@@ -122,14 +122,14 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO sf_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO sf_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO sf_app;
 
--- ── Utility function: set tenant context (called at start of each request) ──
+--  Utility function: set tenant context (called at start of each request) 
 CREATE OR REPLACE FUNCTION set_tenant_context(tid UUID) RETURNS VOID AS $$
 BEGIN
     PERFORM set_config('app.current_tenant_id', tid::TEXT, TRUE);
 END;
 $$ LANGUAGE plpgsql;
 
--- ── Updated_at trigger function ──
+--  Updated_at trigger function 
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN

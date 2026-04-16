@@ -50,7 +50,7 @@ func decodeLastRecord(t *testing.T, buf *bytes.Buffer) map[string]any {
 	return rec
 }
 
-// ─── parseLevel ───────────────────────────────────────────────────────────────
+// ─ parseLevel ─
 
 func TestNew_LevelDebug(t *testing.T) {
 	var buf bytes.Buffer
@@ -82,7 +82,7 @@ func TestNew_LevelInfo_FiltersDebug(t *testing.T) {
 	}
 }
 
-// ─── context helpers ──────────────────────────────────────────────────────────
+// ─ context helpers
 
 func TestWithContext_FromContext_ReturnsStoredLogger(t *testing.T) {
 	var buf bytes.Buffer
@@ -173,7 +173,7 @@ func TestTraceIDFromContext_EmptyWhenNotSet(t *testing.T) {
 	}
 }
 
-// ─── HTTPMiddleware ───────────────────────────────────────────────────────────
+// ─ HTTPMiddleware
 
 func TestHTTPMiddleware_LogsRequest(t *testing.T) {
 	var buf bytes.Buffer

@@ -42,7 +42,7 @@ log()  { echo -e "${GREEN}[ServiceForge]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
 err()  { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
-# ── Pre-flight checks ──
+#  Pre-flight checks 
 check_deps() {
     log "Checking dependencies..."
 
@@ -64,7 +64,7 @@ check_deps() {
     log "Docker $(docker --version | grep -oP '\d+\.\d+\.\d+') with Compose $(docker compose version --short)"
 }
 
-# ── Environment setup ──
+#  Environment setup 
 setup_env() {
     if [ ! -f .env ]; then
         log "Creating .env from template..."
@@ -84,7 +84,7 @@ setup_env() {
     fi
 }
 
-# ── Print access info ──
+#  Print access info 
 print_info() {
     local mode=$1
     echo ""
@@ -121,7 +121,7 @@ print_info() {
     echo ""
 }
 
-# ── Wait for health ──
+#  Wait for health 
 wait_healthy() {
     log "Waiting for services to become healthy..."
     local timeout=120
@@ -145,7 +145,7 @@ wait_healthy() {
     warn "Some services may still be starting. Check: docker compose ps"
 }
 
-# ── Main ──
+#  Main 
 main() {
     local mode="${1:-full}"
 

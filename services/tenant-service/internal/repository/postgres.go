@@ -126,7 +126,7 @@ func (r *PostgresRepo) GetBySlug(ctx context.Context, slug string) (*domain.Tena
 	return t, nil
 }
 
-//  List ──
+//  List
 
 func (r *PostgresRepo) List(ctx context.Context, f ListFilter) (ListResult, error) {
 	// Clamp pagination bounds.

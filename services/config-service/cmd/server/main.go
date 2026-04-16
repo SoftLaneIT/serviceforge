@@ -52,13 +52,13 @@ import (
 func main() {
 	log := logger.NewFromEnv("config-service")
 
-	// ── database ──────────────────────────────────────────────────────────────
+	//  database
 	dsn := config.GetEnv("DATABASE_URL",
 		"postgres://serviceforge:serviceforge@localhost:5432/serviceforge?sslmode=disable")
 	pool := mustConnectPool(log, dsn)
 	defer pool.Close()
 
-	// ── kafka publisher ───────────────────────────────────────────────────────
+	//  kafka publisher ─
 	var pub events.Publisher
 	if config.GetEnv("KAFKA_ENABLED", "true") != "false" {
 		brokersRaw := config.GetEnv("KAFKA_BROKERS", "localhost:9092")
@@ -71,11 +71,11 @@ func main() {
 	}
 	defer pub.Close()
 
-	// ── repository + handler ──────────────────────────────────────────────────
+	//  repository + handler
 	repo := repository.NewPostgres(pool)
 	h := handler.New(repo, pub, log)
 
-	// ── HTTP server ───────────────────────────────────────────────────────────
+	//  HTTP server ─
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 

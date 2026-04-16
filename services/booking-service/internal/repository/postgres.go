@@ -305,16 +305,16 @@ func (r *PostgresRepo) Cancel(ctx context.Context, tenantID, id string) (*domain
 	return b, nil
 }
 
-// ── scan helpers ─────────────────────────────────────────────────────────────
+//  scan helpers ─
 
 type scanner interface{ Scan(dest ...any) error }
 
 func scanBooking(s scanner) (*domain.Booking, error) {
 	var (
-		b           domain.Booking
-		status      string
+		b            domain.Booking
+		status       string
 		metadataJSON []byte
-		cancelledAt pgtype.Timestamptz
+		cancelledAt  pgtype.Timestamptz
 	)
 
 	if err := s.Scan(

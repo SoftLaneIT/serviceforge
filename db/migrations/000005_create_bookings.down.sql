@@ -14,8 +14,8 @@
 -- specific language governing permissions and limitations
 -- under the LICENSE.
 
--- ──
+-- 
 -- 000005_create_bookings.down
--- ──
+-- 
 
 DROP TABLE IF EXISTS bookings CASCADE;

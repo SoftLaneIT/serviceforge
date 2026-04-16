@@ -61,7 +61,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /v1/bookings/{id}", h.CancelBooking)
 }
 
-// ── Health ──────
+//  Health
 
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{"service": "booking-service", "status": "ok", "db": "ok"}
@@ -75,7 +75,7 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, resp)
 }
 
-// ── CreateBooking ─────────────────────────────────────────────────────────────
+//  CreateBooking ─
 
 type createRequest struct {
 	CustomerRef string         `json:"customerRef"`
@@ -132,7 +132,7 @@ func (h *Handler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusCreated, booking)
 }
 
-// ── ListBookings
+//  ListBookings
 
 type listResponse struct {
 	Data   []domain.Booking `json:"data"`
@@ -179,7 +179,7 @@ func (h *Handler) ListBookings(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ── GetBooking ──
+//  GetBooking
 
 func (h *Handler) GetBooking(w http.ResponseWriter, r *http.Request) {
 	log := logger.FromContext(r.Context())
@@ -204,7 +204,7 @@ func (h *Handler) GetBooking(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, booking)
 }
 
-// ── UpdateStatus
+//  UpdateStatus
 
 type updateStatusRequest struct {
 	Status domain.Status `json:"status"`
@@ -254,7 +254,7 @@ func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, booking)
 }
 
-// ── CancelBooking ─────────────────────────────────────────────────────────────
+//  CancelBooking ─
 
 func (h *Handler) CancelBooking(w http.ResponseWriter, r *http.Request) {
 	log := logger.FromContext(r.Context())
@@ -285,7 +285,7 @@ func (h *Handler) CancelBooking(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, booking)
 }
 
-// ── event helpers ─────────────────────────────────────────────────────────────
+//  event helpers ─
 
 // newEventID returns a random 32-hex-char string used as a unique event ID.
 // Using crypto/rand avoids the google/uuid dependency.
@@ -364,7 +364,7 @@ func timeoutCtx(secs int) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), time.Duration(secs)*time.Second)
 }
 
-// ── HTTP helpers
+//  HTTP helpers
 
 func respondJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")

@@ -14,7 +14,7 @@
 -- specific language governing permissions and limitations
 -- under the LICENSE.
 
--- ──
+-- 
 -- 000003_create_api_keys.up
 --
 -- API keys are the primary authentication credential for tenant applications.
@@ -43,7 +43,7 @@
 --   during the key-lookup step by calling the function as a superuser; once the
 --   tenant is identified it sets the context and all subsequent queries are
 --   automatically scoped.
--- ──
+-- 
 
 CREATE TABLE api_keys (
     id           UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -75,7 +75,7 @@ CREATE TABLE api_keys (
     CONSTRAINT uq_api_keys_hash UNIQUE (key_hash)
 );
 
--- ── Indices ──
+--  Indices 
 -- The gateway performs key lookup by hash on every authenticated request;
 -- this must be a fast index scan.
 CREATE UNIQUE INDEX idx_api_keys_hash   ON api_keys (key_hash);
@@ -86,7 +86,7 @@ CREATE        INDEX idx_api_keys_tenant ON api_keys (tenant_id);
 -- Prefix lookup for display deduplication.
 CREATE UNIQUE INDEX idx_api_keys_prefix ON api_keys (key_prefix);
 
--- ── Row-Level Security ─
+--  Row-Level Security ─
 ALTER TABLE api_keys ENABLE ROW LEVEL SECURITY;
 
 -- The SELECT / INSERT / UPDATE / DELETE policy:
@@ -102,6 +102,6 @@ CREATE POLICY api_keys_tenant_isolation ON api_keys
     USING       (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID)
     WITH CHECK  (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID);
 
--- ── Trigger ──
+--  Trigger 
 -- api_keys are immutable after creation; there is no updated_at column and
 -- therefore no trigger needed here.

@@ -14,11 +14,11 @@
 -- specific language governing permissions and limitations
 -- under the LICENSE.
 
--- ─────────────────────────────────────────────────────────────────────────────
+-- 
 -- 000006_create_webhooks.down
 --
 -- Drop deliveries first (FK → webhooks), then webhooks.
--- ─────────────────────────────────────────────────────────────────────────────
+-- 
 
 DROP TABLE IF EXISTS webhook_deliveries CASCADE;
 DROP TABLE IF EXISTS webhooks           CASCADE;

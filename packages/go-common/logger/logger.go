@@ -56,7 +56,7 @@ import (
 	"github.com/SoftLaneIT/serviceforge/packages/go-common/tenant"
 )
 
-// ─── context keys ────────────────────────────────────────────────────────────
+// ─ context keys
 
 type ctxKey string
 
@@ -65,7 +65,7 @@ const (
 	traceIDKey ctxKey = "sf_trace_id"
 )
 
-// ─── Options ─────────────────────────────────────────────────────────────────
+// ─ Options ─
 
 // Options controls how a logger is constructed.
 type Options struct {
@@ -86,7 +86,7 @@ type Options struct {
 	Service string
 }
 
-// ─── Constructors ─────────────────────────────────────────────────────────────
+// ─ Constructors ─
 
 // New builds a *slog.Logger from opts, installs it as the process-wide default
 // (slog.SetDefault), and returns it.  Services that want an isolated logger
@@ -126,7 +126,7 @@ func NewFromEnv(service string) *slog.Logger {
 	})
 }
 
-// ─── Context helpers ──────────────────────────────────────────────────────────
+// ─ Context helpers
 
 // WithContext stores l in ctx and returns the enriched context.  Call this once
 // per request (typically inside HTTPMiddleware) so that handler code can
@@ -178,7 +178,7 @@ func TraceIDFromContext(ctx context.Context) string {
 	return ""
 }
 
-// ─── HTTP middleware ───────────────────────────────────────────────────────────
+// ─ HTTP middleware
 
 // HTTPMiddleware returns an http.Handler middleware that:
 //
@@ -235,7 +235,7 @@ func HTTPMiddleware(l *slog.Logger) func(http.Handler) http.Handler {
 	}
 }
 
-// ─── internal helpers ─────────────────────────────────────────────────────────
+// ─ internal helpers ─
 
 // statusRecorder wraps http.ResponseWriter to capture the HTTP status code.
 // The zero value's status field must be initialised to 200 before use.
