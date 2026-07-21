@@ -101,7 +101,7 @@ services:
           memory: 512M
 
   kafka:
-    image: bitnami/kafka:3.7
+    image: soldevelo/kafka:3.7
     container_name: sf-kafka
     restart: unless-stopped
     environment:
